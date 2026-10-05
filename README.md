@@ -26,6 +26,9 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Dictionary entry in the sheet: kanji, reading, romaji, meanings, JLPT tag, audio
 - **Translation bubbles**: write your own translation and place it on the page; long-press to place, long-press-drag to move
 - Bubbles stay on their balloon at any zoom and screen size
+- **Edit a bubble**: one sheet for its Japanese and your translation (pencil, or tap its text)
+- **Fix what OCR missed**: look the piece up, then "Add「食」to bubble" appends it
+- **Merge bubbles**: tap merge, then tap another bubble; text and regions combine (朝 + 食 → 朝食)
 - Chapter-complete page with a jump to the next chapter
 
 **Words**
