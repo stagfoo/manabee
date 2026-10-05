@@ -1,9 +1,3 @@
-a manga app that loads, japanese anime, has OCR to read the kanji from the bubble. allows you to learn from the book with flash cards and games once the text and words are extracted.
-
-the use can place bubbles on top or next to the translation to slowly translate the book themselves
-
----
-
 # manabee 🐝
 
 Read Japanese manga, OCR the speech bubbles, write your own translation on the
@@ -12,6 +6,51 @@ sideload. Design: `DESIGN.md` and `ui-design/`.
 
 applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 `android/` folder gets it right on its own).
+
+## Features
+
+**Library**
+- Import a manga from page images or `.cbz` / `.zip` archives, with a cover and title
+- Archives split into chapters automatically (one per archive, or one per folder inside)
+- Pages sorted naturally (`2.jpg` before `10.jpg`) and copied into app storage
+- Cover carousel with chapter progress, plus words-learned % per manga
+- Chapter list with read state (unread / in progress / complete) and bubble counts
+- Resume from the last page read; edit chapters and cover, or delete a manga
+
+**Reader**
+- Right-to-left paging (switchable in settings), pinch to zoom
+- **On-device Japanese OCR**: drag a box over a speech bubble to read it
+- **Scan page**: outline every text block on the page, tap one to read it
+- Vertical text put back into right-to-left column order; editable OCR text for fixing mistakes
+- Word chips split from each bubble, tap to look up
+- Dictionary entry in the sheet: kanji, reading, romaji, meanings, JLPT tag, audio
+- **Translation bubbles**: write your own translation and place it on the page; long-press to place, long-press-drag to move
+- Bubbles stay on their balloon at any zoom and screen size
+- Chapter-complete page with a jump to the next chapter
+
+**Words**
+- One deck per manga, shown as ENGLISH · ROMAJI · FURIGANA · KANJI rows
+- Dictionary search to add words by hand
+- Bubbles view: every translation you've written, tap to jump to its page
+- Saved words keep their full dictionary entry, so they work offline
+
+**Study**
+- **Flash cards**: furigana / kanji / romaji front, full entry on the back, 👍 / 👎 grading
+- Leitner spaced repetition: due cards first, "learned" after three boxes
+- **Quiz**: multiple choice, alternating word → meaning and meaning → word
+- **Match**: pair Japanese tiles with meanings, timed, with a miss count
+- Study all words, or one manga's
+
+**Other**
+- Japanese text-to-speech using the phone's own voice, adjustable speed
+- Everything stored on-device in one JSON file; only dictionary lookups go online
+
+## Install
+
+Add `https://github.com/stagfoo/manabee` in
+[Obtainium](https://github.com/ImranR98/Obtainium) and it will pick up every
+release. Or download the APK from
+[Releases](https://github.com/stagfoo/manabee/releases). Android 7.0+, arm64.
 
 ## How it works
 
@@ -97,3 +136,9 @@ tells R8 the other scripts' recognisers are absent on purpose.
 commits, pushes, checks the APK's versionName, and publishes a GitHub release
 in Obtainium's shape: the tag is the bare version, with one arm64 APK. CI
 (`.github/workflows/build.yml`) is manual-only.
+
+## Original idea
+
+a manga app that loads, japanese anime, has OCR to read the kanji from the bubble. allows you to learn from the book with flash cards and games once the text and words are extracted.
+
+the use can place bubbles on top or next to the translation to slowly translate the book themselves
