@@ -113,7 +113,46 @@ class Bubble {
       translation: j['translation'] as String? ?? '',
     );
   }
+
+  /// Adds [text] to the end of the Japanese — for the piece OCR missed.
+  /// Returns false when there was nothing to add.
+  bool appendSource(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return false;
+    source = joinText(source, t);
+    return true;
+  }
+
+  /// Folds [other] into this bubble: its Japanese and translation are
+  /// appended, and the region grows to cover both. For a balloon OCR read
+  /// as two blocks, or one read in two drags. The caller removes [other].
+  void mergeFrom(Bubble other) {
+    source = joinText(source, other.source);
+    translation = joinText(translation, other.translation);
+    final a = region;
+    final b = other.region;
+    region = a == null ? b : (b == null ? a : a.expandToInclude(b));
+  }
 }
+
+/// [a] and [b] joined the way the script wants: Japanese runs straight on
+/// (朝 + 食 = 朝食), anything else gets a space. Empty sides drop out.
+String joinText(String a, String b) {
+  final x = a.trim();
+  final y = b.trim();
+  if (x.isEmpty) return y;
+  if (y.isEmpty) return x;
+  final last = x.runes.last;
+  final first = y.runes.first;
+  final glue = _tight(last) || _tight(first) ? '' : ' ';
+  return '$x$glue$y';
+}
+
+bool _tight(int c) =>
+    isJapanese(c) ||
+    (c >= 0x3000 && c <= 0x303F) || // 、。「」
+    (c >= 0xFF01 && c <= 0xFF60) || // ！？
+    c == 0x2026; // …
 
 class Manga {
   Manga({

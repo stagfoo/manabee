@@ -55,6 +55,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   final Map<String, List<ScannedBlock>> _scanned = {};
 
   String? _activeBubbleId;
+
+  /// Waiting for a second bubble to be tapped, to fold into the active one.
+  bool _merging = false;
   final _query = TextEditingController();
   List<Entry> _results = const [];
   int _selected = 0;
@@ -179,7 +182,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // ---- Bubbles ----
 
   void _selectBubble(Bubble b, {bool lookupFirst = false}) {
-    setState(() => _activeBubbleId = b.id);
+    setState(() {
+      _activeBubbleId = b.id;
+      _merging = false;
+    });
     if (lookupFirst) {
       final first = lookupCandidates(b.source).firstOrNull;
       if (first != null) _lookup(first);
@@ -272,21 +278,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
     int page,
     Offset position,
   ) async {
-    final translation = await promptText(
-      context,
-      title: 'Your translation',
-      hint: 'What does this bubble say?',
-      maxLines: 3,
-      action: 'Place',
-    );
-    if (translation == null || translation.trim().isEmpty || !mounted) return;
     final b = Bubble(
       id: newId(),
       chapterId: c.id,
       page: page,
       position: position,
-      translation: translation.trim(),
     );
+    final result = await _openEditor(
+      b,
+      title: 'New bubble',
+      canMerge: false,
+      isNew: true,
+    );
+    if (result != _EditResult.saved || !mounted) return;
+    if (b.source.isEmpty && b.translation.isEmpty) return;
     AppScope.read(context).addBubble(m, b);
     setState(() => _activeBubbleId = b.id);
   }
@@ -294,31 +299,97 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _editTranslation(Manga m, Chapter c, Bubble? b) async {
     if (b == null) {
       await _placeBubble(m, c, _page, const Offset(0.5, 0.5));
-      return;
+    } else {
+      await _editBubble(m, b);
     }
-    final t = await promptText(
-      context,
-      title: 'Your translation',
-      initial: b.translation,
-      maxLines: 3,
-      hint: b.source.isEmpty ? 'What does this bubble say?' : b.source,
-    );
-    if (t == null) return;
-    b.translation = t.trim();
-    if (mounted) AppScope.read(context).changed();
   }
 
-  Future<void> _editSource(Bubble b) async {
-    final t = await promptText(
-      context,
-      title: 'Japanese text',
-      initial: b.source,
-      maxLines: 4,
-      hint: 'Fix what OCR misread',
+  /// The one place a bubble's Japanese and translation are edited, with
+  /// merge and delete beside them.
+  Future<void> _editBubble(
+    Manga m,
+    Bubble b, {
+    bool focusJapanese = false,
+  }) async {
+    final lib = AppScope.read(context);
+    final result = await _openEditor(
+      b,
+      title: 'Bubble #${lib.bubbleNumber(m, b).toString().padLeft(2, '0')}',
+      focusJapanese: focusJapanese,
+      canMerge: lib.bubblesOn(m, b.chapterId, b.page).length > 1,
     );
-    if (t == null) return;
-    b.source = t.trim();
-    if (mounted) AppScope.read(context).changed();
+    if (!mounted) return;
+    switch (result) {
+      case _EditResult.saved:
+        lib.changed();
+      case _EditResult.merge:
+        _startMerge(b);
+      case _EditResult.delete:
+        lib.removeBubble(m, b);
+        setState(() => _activeBubbleId = null);
+      case null:
+        break;
+    }
+  }
+
+  Future<_EditResult?> _openEditor(
+    Bubble b, {
+    required String title,
+    bool focusJapanese = false,
+    bool canMerge = true,
+    bool isNew = false,
+  }) => showModalBottomSheet<_EditResult>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => _BubbleEditor(
+      bubble: b,
+      title: title,
+      focusJapanese: focusJapanese,
+      canMerge: canMerge,
+      isNew: isNew,
+    ),
+  );
+
+  void _startMerge(Bubble b) {
+    setState(() {
+      _activeBubbleId = b.id;
+      _merging = true;
+    });
+    // Out of the way: the bubble to merge in is usually under the sheet.
+    if (_sheet.isAttached) {
+      _sheet.animateTo(
+        _sheetMin,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  /// Tapping a bubble: normally selects it; while merging, folds it into
+  /// the active one.
+  void _tapBubble(Manga m, Bubble b) {
+    final active = _activeBubble(m);
+    if (!_merging || active == null) {
+      _selectBubble(b);
+      return;
+    }
+    setState(() => _merging = false);
+    if (b.id == active.id) return;
+    active.mergeFrom(b);
+    final lib = AppScope.read(context);
+    lib.removeBubble(m, b);
+    HapticFeedback.lightImpact();
+    toast(
+      context,
+      'Merged — now「${active.source.isEmpty ? active.translation : active.source}」',
+    );
+  }
+
+  void _appendToBubble(Bubble b, String text) {
+    if (!b.appendSource(text)) return;
+    AppScope.read(context).changed();
+    HapticFeedback.selectionClick();
+    toast(context, 'Bubble now reads「${b.source}」');
   }
 
   // ---- Build ----
@@ -358,6 +429,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   _page = i;
                   _zoomed = false;
                   _activeBubbleId = null;
+                  _merging = false;
                 });
                 _markRead();
               },
@@ -383,7 +455,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   },
                   onSelectRegion: (r) => _ocrRegion(m, c, i, r),
                   onTapBlock: (b) => _adoptBlock(m, c, i, b),
-                  onTapBubble: (b) => _selectBubble(b),
+                  onTapBubble: (b) => _tapBubble(m, b),
                   onMoveBubble: (b, p) {
                     b.position = p;
                     lib.changed();
@@ -435,6 +507,52 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       Text(_busy!, style: T.monoBold.copyWith(color: C.lime)),
                     ],
                   ),
+                ),
+              ),
+            ),
+          if (_merging && active != null)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 64,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: C.lime),
+                  boxShadow: [
+                    BoxShadow(
+                      color: C.lime.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.call_merge_rounded,
+                      color: C.lime,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tap the bubble to merge into #${lib.bubbleNumber(m, active).toString().padLeft(2, '0')}',
+                        style: T.bodyMd.copyWith(
+                          color: C.lime,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _merging = false),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: C.textDim),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -507,7 +625,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     _lookupError!,
                     style: T.bodyMd.copyWith(color: C.textDim),
                   ),
-                if (entry != null) ..._entryBlock(entry),
+                if (entry != null) ..._entryBlock(entry, active),
                 if (_results.length > 1) _otherMatches(),
                 if (active != null) ...[
                   const SizedBox(height: 16),
@@ -585,7 +703,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
-  List<Widget> _entryBlock(Entry e) => [
+  List<Widget> _entryBlock(Entry e, Bubble? active) => [
     Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -636,6 +754,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
       e.allMeanings,
       style: T.bodyMd.copyWith(color: const Color(0xFFD4D4DC)),
     ),
+    // For the piece OCR missed: look it up, then drop it into the bubble.
+    if (active != null)
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          onPressed: () => _appendToBubble(active, e.word),
+          icon: const Icon(Icons.playlist_add_rounded, size: 20),
+          label: Text(
+            'Add「${e.word}」to bubble',
+            style: T.pill.copyWith(color: C.lime),
+          ),
+        ),
+      ),
   ];
 
   Widget _otherMatches() => Padding(
@@ -687,50 +819,53 @@ class _ReaderScreenState extends State<ReaderScreen> {
         children: [
           Row(
             children: [
-              Text('PANEL CONTEXT', style: T.monoSm),
-              const Spacer(),
+              Expanded(
+                child: Text(
+                  'PANEL CONTEXT',
+                  style: T.monoSm,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               Text(
-                'Bubble #${n.toString().padLeft(2, '0')}',
+                '#${n.toString().padLeft(2, '0')}',
                 style: T.monoSm.copyWith(color: C.lime),
               ),
               IconButton(
                 visualDensity: VisualDensity.compact,
-                tooltip: 'Delete bubble',
-                onPressed: () async {
-                  final ok = await confirm(
-                    context,
-                    'Delete this bubble?',
-                    'Its text and your translation are removed. Saved words stay.',
-                  );
-                  if (ok) {
-                    lib.removeBubble(m, b);
-                    setState(() => _activeBubbleId = null);
-                  }
-                },
+                tooltip: 'Merge with another bubble',
+                onPressed: () => _startMerge(b),
                 icon: const Icon(
-                  Icons.delete_outline_rounded,
+                  Icons.call_merge_rounded,
                   size: 18,
-                  color: C.inactive,
+                  color: C.textDim,
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Edit bubble',
+                onPressed: () => _editBubble(m, b),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  size: 18,
+                  color: C.textDim,
                 ),
               ),
             ],
           ),
-          if (b.source.isNotEmpty || b.region != null)
-            InkWell(
-              onTap: () => _editSource(b),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8, bottom: 4),
-                child: Text(
-                  b.source.isEmpty
-                      ? 'Tap to type the Japanese'
-                      : '「${b.source}」',
-                  style: T.jp.copyWith(
-                    fontSize: 15,
-                    color: b.source.isEmpty ? C.inactive : C.text,
-                  ),
+          InkWell(
+            onTap: () => _editBubble(m, b, focusJapanese: true),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8, bottom: 4),
+              child: Text(
+                b.source.isEmpty ? 'Tap to add the Japanese' : '「${b.source}」',
+                style: T.jp.copyWith(
+                  fontSize: 15,
+                  color: b.source.isEmpty ? C.inactive : C.text,
                 ),
               ),
             ),
+          ),
           if (b.translation.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 8, bottom: 6),
@@ -763,7 +898,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'Tap the text to fix OCR mistakes, a chip to look it up.',
+                'Tap the text to edit it, a chip to look it up. Missing a piece? Look it up and add it, or merge in another bubble.',
                 style: T.bodyMd.copyWith(color: C.inactive, fontSize: 11),
               ),
             ),
@@ -1311,6 +1446,149 @@ class _PageState extends State<_Page> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _EditResult { saved, merge, delete }
+
+/// Both sides of a bubble in one sheet. Edits go to the bubble only on
+/// Save, so backing out leaves it as it was.
+class _BubbleEditor extends StatefulWidget {
+  const _BubbleEditor({
+    required this.bubble,
+    required this.title,
+    required this.focusJapanese,
+    required this.canMerge,
+    required this.isNew,
+  });
+
+  final Bubble bubble;
+  final String title;
+  final bool focusJapanese;
+  final bool canMerge;
+  final bool isNew;
+
+  @override
+  State<_BubbleEditor> createState() => _BubbleEditorState();
+}
+
+class _BubbleEditorState extends State<_BubbleEditor> {
+  late final _source = TextEditingController(text: widget.bubble.source);
+  late final _translation = TextEditingController(
+    text: widget.bubble.translation,
+  );
+
+  @override
+  void dispose() {
+    _source.dispose();
+    _translation.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    widget.bubble
+      ..source = _source.text.trim()
+      ..translation = _translation.text.trim();
+    Navigator.pop(context, _EditResult.saved);
+  }
+
+  InputDecoration _field(String hint) => InputDecoration(
+    hintText: hint,
+    fillColor: C.surface,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: C.ghostBorder, width: 1.5),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: C.lime, width: 1.5),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        16 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.title, style: T.headlineMd),
+            const SizedBox(height: 16),
+            Text('JAPANESE', style: T.monoSm),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _source,
+              autofocus: widget.focusJapanese,
+              minLines: 1,
+              maxLines: 4,
+              style: T.jp.copyWith(fontSize: 18),
+              decoration: _field(
+                'What the balloon says — fix or add what OCR missed',
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('YOUR TRANSLATION', style: T.monoSm),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _translation,
+              autofocus: !widget.focusJapanese && widget.isNew,
+              minLines: 1,
+              maxLines: 4,
+              style: T.bodyLg,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: _field('What it means'),
+            ),
+            const SizedBox(height: 20),
+            LimeButton(
+              label: widget.isNew ? 'Place bubble' : 'Save',
+              onPressed: _save,
+            ),
+            if (!widget.isNew) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  if (widget.canMerge) ...[
+                    Expanded(
+                      child: GhostButton(
+                        label: 'Merge…',
+                        icon: Icons.call_merge_rounded,
+                        onPressed: () =>
+                            Navigator.pop(context, _EditResult.merge),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: GhostButton(
+                      label: 'Delete',
+                      icon: Icons.delete_outline_rounded,
+                      onPressed: () async {
+                        final ok = await confirm(
+                          context,
+                          'Delete this bubble?',
+                          'Its text and your translation are removed. Saved words stay.',
+                        );
+                        if (ok && context.mounted) {
+                          Navigator.pop(context, _EditResult.delete);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );
