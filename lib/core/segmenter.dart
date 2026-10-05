@@ -1,0 +1,179 @@
+/// Splitting a bubble's Japanese into pieces worth looking up.
+///
+/// Japanese has no spaces, and a real morphological analyser (MeCab and
+/// its dictionaries) is tens of megabytes. This is a heuristic instead,
+/// built on the one signal the script gives for free: where kanji, kana
+/// and punctuation change. A kanji run keeps the hiragana that follows it
+/// (its okurigana — 若い, 食べる) until something that looks like a particle
+/// starts. It is wrong sometimes; the reader lets you edit the lookup, so
+/// it only has to be a good first guess.
+library;
+
+import 'kana.dart';
+
+enum SegmentKind { word, kana, punctuation }
+
+class Segment {
+  const Segment(this.text, this.kind);
+
+  final String text;
+  final SegmentKind kind;
+
+  /// Worth a dictionary lookup. Punctuation isn't; a lone hiragana particle
+  /// (の, は) usually isn't either, and offering it as a chip next to the
+  /// real words just buries them.
+  bool get lookupWorthy =>
+      kind == SegmentKind.word ||
+      (kind == SegmentKind.kana && text.runes.length >= 2);
+
+  @override
+  bool operator ==(Object other) =>
+      other is Segment && other.text == text && other.kind == kind;
+
+  @override
+  int get hashCode => Object.hash(text, kind);
+
+  @override
+  String toString() => 'Segment($text, $kind)';
+}
+
+/// Particles that end a kanji word's okurigana. Deliberately narrow: で
+/// and the sentence-enders (か, よ, ね, な) turn up inside conjugations
+/// (読んで, 少ない) far too often to treat as boundaries there.
+const Set<String> _okuriganaStops = {'の', 'は', 'が', 'を', 'に', 'へ', 'も', 'と'};
+
+/// Particles that may start the hiragana run right after a word. Here the
+/// wider set is right: directly after 学生 or ラーメン, a で or か is
+/// almost always the particle.
+const Set<String> _particles = {
+  'の',
+  'は',
+  'が',
+  'を',
+  'に',
+  'へ',
+  'も',
+  'と',
+  'で',
+  'か',
+  'よ',
+  'ね',
+  'な',
+  'や',
+};
+
+/// The copula, which follows a noun directly and must not be swallowed as
+/// okurigana (学生です) or split as a particle (で + す).
+const List<String> _copulas = ['です', 'でし', 'だ', 'じゃ'];
+
+bool _startsWithAny(List<String> chars, int i, List<String> prefixes) {
+  for (final p in prefixes) {
+    final n = p.length;
+    if (i + n <= chars.length && chars.sublist(i, i + n).join() == p) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// The longest okurigana worth absorbing. Longer hiragana tails are almost
+/// always a conjugation plus something else (食べられなかったのに), and
+/// the dictionary does better with a shorter stem.
+const int _maxOkurigana = 4;
+
+enum _Class { kanji, hiragana, katakana, latin, other }
+
+_Class _classOf(int c) {
+  if (isKanji(c)) return _Class.kanji;
+  if (isHiragana(c)) return _Class.hiragana;
+  if (isKatakana(c)) return _Class.katakana;
+  if ((c >= 0x30 && c <= 0x39) ||
+      (c >= 0x41 && c <= 0x5A) ||
+      (c >= 0x61 && c <= 0x7A) ||
+      (c >= 0xFF10 && c <= 0xFF19) ||
+      (c >= 0xFF21 && c <= 0xFF3A) ||
+      (c >= 0xFF41 && c <= 0xFF5A)) {
+    return _Class.latin;
+  }
+  return _Class.other;
+}
+
+List<Segment> segment(String text) {
+  final chars = text.runes.map(String.fromCharCode).toList();
+  final classes = text.runes.map(_classOf).toList();
+  final out = <Segment>[];
+  var i = 0;
+
+  // Whether the previous segment was a word, which is what makes a
+  // following hiragana character read as a particle.
+  var afterWord = false;
+
+  while (i < chars.length) {
+    final cls = classes[i];
+    var j = i + 1;
+
+    switch (cls) {
+      case _Class.kanji:
+        while (j < chars.length && classes[j] == _Class.kanji) {
+          j++;
+        }
+        var capped = false;
+        if (!_startsWithAny(chars, j, _copulas)) {
+          var tail = 0;
+          while (j < chars.length &&
+              classes[j] == _Class.hiragana &&
+              tail < _maxOkurigana &&
+              !_okuriganaStops.contains(chars[j])) {
+            j++;
+            tail++;
+          }
+          capped = tail == _maxOkurigana;
+        }
+        out.add(Segment(chars.sublist(i, j).join(), SegmentKind.word));
+        // Hiragana straight after a capped tail is more conjugation
+        // (食べられな|かった), not a particle.
+        afterWord = !capped;
+      case _Class.katakana:
+      case _Class.latin:
+        while (j < chars.length && classes[j] == cls) {
+          j++;
+        }
+        out.add(Segment(chars.sublist(i, j).join(), SegmentKind.word));
+        afterWord = true;
+      case _Class.hiragana:
+        if (afterWord &&
+            _particles.contains(chars[i]) &&
+            !_startsWithAny(chars, i, _copulas)) {
+          // "のこと" after a word: の stands alone, こと is the next piece.
+          out.add(Segment(chars[i], SegmentKind.kana));
+          afterWord = false;
+          break;
+        }
+        while (j < chars.length && classes[j] == _Class.hiragana) {
+          j++;
+        }
+        out.add(Segment(chars.sublist(i, j).join(), SegmentKind.kana));
+        afterWord = false;
+      case _Class.other:
+        while (j < chars.length && classes[j] == _Class.other) {
+          j++;
+        }
+        final s = chars.sublist(i, j).join();
+        if (s.trim().isNotEmpty) {
+          out.add(Segment(s.trim(), SegmentKind.punctuation));
+        }
+        afterWord = false;
+    }
+    i = j;
+  }
+  return out;
+}
+
+/// The distinct lookup-worthy pieces of [text], in reading order.
+List<String> lookupCandidates(String text) {
+  final seen = <String>{};
+  return [
+    for (final s in segment(text))
+      if (s.lookupWorthy && seen.add(s.text)) s.text,
+  ];
+}

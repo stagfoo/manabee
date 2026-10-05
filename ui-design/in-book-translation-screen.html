@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>manabee - Manga Reader &amp; Bubble Translation</title>
+<!-- Tailwind CSS CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brandYellow: '#e2f438',
+            surfaceDark: '#0e1013',
+            sheetDark: '#090a0c',
+            bubbleDark: '#121418',
+          },
+          fontFamily: {
+            mono: ['SF Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: CSS Stylesheets -->
+<style data-purpose="custom-layout">
+    /* Mobile app container lock & iOS viewport fixes */
+    body {
+      background-color: #050507;
+      color: #ffffff;
+      touch-action: pan-y;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Subtle grid background texture behind panels */
+    .blueprint-grid {
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+  </style>
+<style data-purpose="sheet-animations">
+    /* Smooth transitions for bottom lookup sheet drawer */
+    .sheet-transition {
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+
+    .pulse-glow {
+      box-shadow: 0 0 16px rgba(226, 244, 56, 0.45);
+    }
+  </style>
+<!-- END: CSS Stylesheets -->
+</head>
+<body class="flex justify-center items-center min-h-screen bg-black blueprint-grid p-0 sm:p-4 select-none">
+<!-- BEGIN: MobileDeviceFrame -->
+<main class="relative w-full max-w-[390px] h-[844px] bg-black sm:rounded-[44px] shadow-2xl overflow-hidden flex flex-col border border-neutral-800">
+<!-- BEGIN: TopBarControls -->
+<!-- Top reader overlay navigation bar with translucent blur -->
+<header class="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 pt-10 pb-3 bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-auto">
+<!-- Back / Exit Reader -->
+<button aria-label="Back" class="w-9 h-9 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white active:scale-95 transition-transform">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewbox="0 0 24 24">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Chapter / Page Counter -->
+<div class="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-xs font-medium text-neutral-300 tracking-wider">
+        Mushi-shi · <span class="text-white font-bold">14 / 42</span>
+</div>
+<!-- OCR Status / Quick Settings -->
+<button class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brandYellow/15 border border-brandYellow/40 text-brandYellow text-[11px] font-semibold tracking-wide" id="ocrToggleBtn">
+<span class="w-1.5 h-1.5 rounded-full bg-brandYellow animate-ping"></span>
+<span>OCR ON</span>
+</button>
+</header>
+<!-- END: TopBarControls -->
+<!-- BEGIN: MangaViewerArea -->
+<!-- Authentic Manga Canvas with OCR Overlay Hotspots -->
+<section class="relative flex-1 w-full h-full overflow-hidden bg-neutral-900 cursor-grab active:cursor-grabbing">
+<!-- High-res authentic manga panel artwork provided -->
+<img alt="Japanese Manga Page - Mushi-shi" class="w-full h-full object-cover object-top opacity-95" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGFxV0979jb85tAvcjmOKP0tRLceD499htZr1CIMfemBc017aeYz0S-hFz4vBzPnv2uMHEX3UxLe7AIGTODX6ZHpwIf7CC9VzEXZppSlgiRQuEEXKvdmWdSojVvmWtFg6Yl9gDh2Tm-S-m7oQHmFABxjppNUP8tiZPpL-xJUa7ncfC5K85LqXx99Botvsdo-HlfPaI8voZOfirvEsNjvMFg7bTpFOzO7eKtsM5-aSnU9UGmhQN8oSEcAkeuYUAEtlI19Y"/>
+<!-- Dark Vignette and Panel Depth Gradients -->
+<div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-black via-transparent to-black/20"></div>
+<!-- BEGIN: TranslationOverlays -->
+<!-- Bubble Translation 1: Top speech bubble ("good morning sui") -->
+<div class="absolute top-[168px] left-[32%] -translate-x-1/2 z-20 cursor-pointer active:scale-95 transition-transform" data-purpose="dialogue-pill" id="bubble-1" onclick="selectWord('sui', 'Good morning Sui', 'スイ', '水', 'Water; Sui (Name)')">
+<div class="px-3 py-1 rounded-full bg-black/90 backdrop-blur-md border border-neutral-700/80 shadow-xl flex items-center gap-1.5 hover:border-brandYellow/80">
+<span class="w-1.5 h-1.5 rounded-full bg-neutral-500"></span>
+<span class="text-[12px] font-mono tracking-tight text-neutral-200 font-medium">good morning sui</span>
+</div>
+</div>
+<!-- Bubble Translation 2: Active / Tapped Bubble ("there are mushi") -->
+<div class="absolute top-[346px] left-[26%] -translate-x-1/2 z-20 cursor-pointer active:scale-95 transition-transform" data-purpose="dialogue-pill" id="bubble-2" onclick="selectWord('mushi', 'there are mushi', 'むし', '蟲 / 虫', 'Insect, bug, mushi (spiritual entity)')">
+<div class="px-3 py-1 rounded-full bg-black/95 backdrop-blur-md border border-brandYellow/80 shadow-[0_0_12px_rgba(226,244,56,0.35)] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-brandYellow"></span>
+<span class="text-[12px] font-mono tracking-tight text-brandYellow font-semibold">there are mushi</span>
+</div>
+</div>
+<!-- Bubble Translation 3: Middle right dialogue highlight -->
+<div class="absolute top-[490px] right-[24%] z-20 cursor-pointer active:scale-95 transition-transform" data-purpose="dialogue-pill" id="bubble-3" onclick="selectWord('wakai', 'let me tell you something', 'わかい', '若い', 'Young, youthful (JLPT N5)')">
+<div class="px-2.5 py-0.5 rounded-full bg-black/85 backdrop-blur-md border border-neutral-700 text-[11px] font-mono text-neutral-300 hover:border-white/50">
+          wakai
+        </div>
+</div>
+<!-- END: TranslationOverlays -->
+</section>
+<!-- END: MangaViewerArea -->
+<!-- BEGIN: BottomSheetLookupDrawer -->
+<!-- Drawer with draggable pill, glowing '+' add flashcard FAB and detailed dictionary breakdown -->
+<aside class="sheet-transition absolute bottom-0 inset-x-0 z-40 bg-[#090a0e] rounded-t-[32px] border-t border-neutral-800 shadow-[0_-12px_36px_rgba(0,0,0,0.85)] flex flex-col pt-3 pb-8 px-5" data-purpose="dictionary-lookup-drawer" id="lookupSheet">
+<!-- Top Handle and Floating Action Button (FAB) -->
+<div class="relative w-full flex items-center justify-center pb-2">
+<!-- Drawer Drag Indicator Handle -->
+<div class="w-11 h-1.5 bg-neutral-600 rounded-full cursor-pointer hover:bg-neutral-500 transition-colors"></div>
+<!-- Floating Yellow Neon '+' Button for Saving Flashcard -->
+<button aria-label="Add to vocabulary deck" class="absolute -top-7 right-4 w-12 h-12 rounded-full bg-brandYellow text-black flex items-center justify-center pulse-glow active:scale-90 transition-all font-black" id="addFlashcardBtn" onclick="toggleBookmark()">
+<svg class="w-6 h-6 stroke-[3]" fill="none" id="plusIcon" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<svg class="w-6 h-6 stroke-[3] hidden text-black" fill="none" id="checkIcon" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+<!-- Word Search Bar / Active Word Bubble Pill -->
+<div class="mt-2 mb-4">
+<div class="w-full h-12 bg-black/90 border border-neutral-700/80 rounded-full px-4 flex items-center justify-between text-neutral-200">
+<div class="flex items-center gap-2.5">
+<svg class="w-4 h-4 text-neutral-500" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M21 21l-4.35-4.35M16.65 11a5.65 5.65 0 11-11.3 0 5.65 5.65 0 0111.3 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="font-mono text-base font-semibold text-white tracking-wide" id="activeWordDisplay">wakai</span>
+</div>
+<!-- JLPT Badge -->
+<span class="text-[11px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-brandYellow/20 text-brandYellow border border-brandYellow/30" id="levelBadge">
+            JLPT N5
+          </span>
+</div>
+</div>
+<!-- Dictionary Definition & Audio Section -->
+<div class="space-y-4">
+<!-- Main Kanji & Pronunciation Header -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-extrabold text-white tracking-tight" id="kanjiDisplay">若い</span>
+<span class="text-sm font-medium text-neutral-400 font-mono" id="furiganaDisplay">[わかい · wakai]</span>
+</div>
+<p class="mt-1 text-sm text-neutral-300 font-normal" id="definitionDisplay">
+              young; youthful; immature; green
+            </p>
+</div>
+<!-- Audio Pronunciation Button -->
+<button class="w-10 h-10 rounded-full bg-neutral-800/80 border border-neutral-700 flex items-center justify-center text-brandYellow active:scale-95">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+<!-- Manga Sentence Context Contextual Breakdown -->
+<div class="p-3 bg-neutral-900/90 rounded-2xl border border-neutral-800/80">
+<div class="flex items-center justify-between text-[11px] font-mono text-neutral-400 mb-1">
+<span>PANEL CONTEXT</span>
+<span class="text-brandYellow">Bubble #03</span>
+</div>
+<p class="text-xs text-neutral-200 leading-relaxed font-sans" id="contextText">
+            "若い頃の記憶..." (Memories from when I was young...)
+          </p>
+</div>
+<!-- Action Row -->
+<div class="grid grid-cols-2 gap-2.5 pt-1">
+<button class="w-full py-2.5 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 transition-colors">
+            Copy Sentence
+          </button>
+<button class="w-full py-2.5 rounded-xl bg-brandYellow hover:bg-brandYellow/90 text-black text-xs font-bold transition-colors">
+            Study in Anki
+          </button>
+</div>
+</div>
+<!-- iOS Home Bar Indicator -->
+<div class="w-32 h-1 bg-neutral-700 rounded-full mx-auto mt-5"></div>
+</aside>
+<!-- END: BottomSheetLookupDrawer -->
+</main>
+<!-- END: MobileDeviceFrame -->
+<!-- BEGIN: InteractiveHandlers -->
+<script data-purpose="reader-interactivity">
+    // Bookmark flashcard state toggle
+    function toggleBookmark() {
+      const plusIcon = document.getElementById('plusIcon');
+      const checkIcon = document.getElementById('checkIcon');
+      const btn = document.getElementById('addFlashcardBtn');
+
+      if (plusIcon.classList.contains('hidden')) {
+        plusIcon.classList.remove('hidden');
+        checkIcon.classList.add('hidden');
+        btn.classList.add('pulse-glow');
+        btn.classList.remove('bg-emerald-400');
+        btn.classList.add('bg-brandYellow');
+      } else {
+        plusIcon.classList.add('hidden');
+        checkIcon.classList.remove('hidden');
+        btn.classList.remove('pulse-glow');
+        btn.classList.remove('bg-brandYellow');
+        btn.classList.add('bg-emerald-400');
+      }
+    }
+
+    // Interactive bubble picker
+    function selectWord(word, fullText, furigana, kanji, definition) {
+      document.getElementById('activeWordDisplay').textContent = word;
+      document.getElementById('kanjiDisplay').textContent = kanji;
+      document.getElementById('furiganaDisplay').textContent = `[${furigana} · ${word}]`;
+      document.getElementById('definitionDisplay').textContent = definition;
+      document.getElementById('contextText').textContent = `"${fullText}"`;
+
+      // Animate drawer slightly for tactile feel
+      const sheet = document.getElementById('lookupSheet');
+      sheet.classList.add('translate-y-1');
+      setTimeout(() => {
+        sheet.classList.remove('translate-y-1');
+      }, 100);
+    }
+  </script>
+<!-- END: InteractiveHandlers -->
+</body></html>

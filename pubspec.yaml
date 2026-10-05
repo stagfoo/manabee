@@ -1,0 +1,60 @@
+name: manabee
+description: "manabee — read Japanese manga, OCR the speech bubbles, translate them yourself, and learn the words with flash cards and games."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Reading the Japanese out of a speech bubble, on-device. The Japanese model
+  # itself is added in android/app/build.gradle.kts — the plugin only compiles
+  # against it.
+  google_mlkit_text_recognition: ^0.17.1
+
+  # Picking pages, cover images and .cbz/.zip chapters to import. 13.x builds
+  # cleanly on this toolchain (kidsdreamland ships on it).
+  file_picker: ^13.1.0
+
+  # Imported pages are copied into the app's own storage, so a manga keeps
+  # working after the original files are moved or deleted.
+  path_provider: ^2.1.6
+
+  # Unpacking .cbz / .zip chapters, the usual shape a manga arrives in.
+  archive: ^4.3.0
+
+  # Cropping a selected bubble out of a page before handing it to OCR. A crop
+  # recognises far better than a whole page, where the art drowns the text.
+  image: ^4.10.1
+
+  # Dictionary lookups against jisho.org.
+  http: ^1.6.0
+
+  # Pronunciation, from the device's own Japanese voice.
+  flutter_tts: ^4.2.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    # Bundled rather than fetched with google_fonts: the reader works offline,
+    # and a fallback-font flash on every launch would undo the design.
+    # Both under the SIL Open Font Licence 1.1 — assets/fonts/OFL-*.txt.
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit[wght].ttf
+    - family: SpaceMono
+      fonts:
+        - asset: assets/fonts/SpaceMono-Regular.ttf
+        - asset: assets/fonts/SpaceMono-Bold.ttf
+          weight: 700

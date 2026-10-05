@@ -1,0 +1,99 @@
+a manga app that loads, japanese anime, has OCR to read the kanji from the bubble. allows you to learn from the book with flash cards and games once the text and words are extracted.
+
+the use can place bubbles on top or next to the translation to slowly translate the book themselves
+
+---
+
+# manabee 🐝
+
+Read Japanese manga, OCR the speech bubbles, write your own translation on the
+page, and turn the words into flash cards and games. Android, Flutter, personal
+sideload. Design: `DESIGN.md` and `ui-design/`.
+
+applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
+`android/` folder gets it right on its own).
+
+## How it works
+
+| Tab | What's there |
+| --- | --- |
+| 🏠 **Library** | Cover carousel, chapter progress, how many of the focused manga's words you've learned. Tap a cover for its chapters; the last tile imports a new manga. |
+| 💬 **Words** | One deck per manga. Each deck lists saved words (ENGLISH · ROMAJI · FURIGANA · KANJI), a dictionary search to add more, and a *Bubbles* view of every translation you've written. |
+| 🗃 **Study** | Flash cards (👍 / 👎, Leitner-scheduled), a multiple-choice quiz, and a pair-matching game, over all words or one manga's. |
+
+### Importing
+
+Cover image, title, then chapters, from either:
+- **page images**: pick every page of one chapter. They're sorted naturally, so `2.jpg` comes before `10.jpg`.
+- **.cbz / .zip**: one chapter per archive, or one per folder inside it.
+
+Everything is **copied** into app storage. Picked files on Android are
+temporary content URIs, and a manga shouldn't stop opening because its source
+folder moved.
+
+### Reading
+
+The reader has two modes, because one drag can't mean two things:
+
+- **OCR OFF** (reading): swipe to turn pages (right-to-left by default), pinch
+  to zoom. **Long-press the page** to place a translation bubble there.
+  **Long-press-drag a bubble** to move it.
+- **OCR ON**: paging is paused and the page stays at its current zoom, so zoom
+  in first for small balloons. **Drag a box over a speech balloon** to read it.
+  **SCAN** finds every text block on the page and outlines it; tap one to read
+  it.
+
+A read bubble opens the sheet: its Japanese (tap to fix OCR mistakes), chips
+for each word in it (tap to look one up), and the dictionary entry. **+** saves
+the word to the manga's deck. **Translate bubble** writes your translation onto
+the page.
+
+Bubble positions are stored normalised to the page image, not in screen
+pixels, so they stay on their balloon at any zoom level and on any screen.
+
+### Where the data comes from
+
+- **OCR**: Google ML Kit, on-device, with the Japanese model bundled. That
+  model is most of the APK's ~34 MB, and it needs no network. Crops are
+  upscaled and padded before recognition, and vertical text is put back into
+  right-to-left column order (`lib/core/ocr_text.dart`).
+- **Dictionary**: [jisho.org](https://jisho.org)'s API, which serves JMdict
+  (© EDRDG, CC BY-SA 4.0). Lookups need internet. **Saved words keep their
+  full entry**, so flash cards and games work offline. Bundling JMdict plus a
+  deinflector would cost tens of MB.
+- **Word splitting**: a script-boundary heuristic (`lib/core/segmenter.dart`),
+  not a morphological analyser. It's a good first guess, and the lookup box is
+  editable for when it isn't.
+- **Audio**: the device's Japanese text-to-speech voice. If none is installed,
+  the app says so instead of failing silently.
+
+Everything else (library, bubbles, words, progress) is one JSON file in app
+storage: `library.json`, written atomically.
+
+## Layout
+
+```
+lib/core/       pure Dart, fully unit-tested: kana→romaji, segmenter, page
+                geometry, OCR text ordering, Leitner SRS, quiz/match games,
+                natural sort + archive grouping
+lib/services/   thin plugin wrappers: store, importer, ocr, jisho, speech
+lib/screens/    UI
+lib/widgets/    shared pieces (grid ground, header, word rows, entry detail)
+```
+
+## Building
+
+```sh
+flutter test
+flutter build apk --release --target-platform android-arm64 --split-per-abi
+```
+
+Signed with the committed `android/app/debug.keystore`, which is debug-only
+and committed on purpose, so local and CI builds install over each other.
+`android/app/proguard-rules.pro` keeps ML Kit's reflectively-loaded classes and
+tells R8 the other scripts' recognisers are absent on purpose.
+
+`scripts/release.sh` bumps the version, runs analyze, the tests and the build,
+commits, pushes, checks the APK's versionName, and publishes a GitHub release
+in Obtainium's shape: the tag is the bare version, with one arm64 APK. CI
+(`.github/workflows/build.yml`) is manual-only.
