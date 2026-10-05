@@ -166,3 +166,21 @@ String? _lastVowel(String written) {
   }
   return null;
 }
+
+/// The form of [text] worth sending to a dictionary. Manga stretches and
+/// clips words for emphasis, and the dictionary only knows them plain:
+/// - ー after hiragana is a stretch (いってきまーす → いってきます). After
+///   katakana it's a real long vowel (ラーメン) and stays.
+/// - A trailing っ / ッ is a clipped, emphatic ending (ばかっ → ばか).
+String normalizeForLookup(String text) {
+  final chars = text.trim().runes.toList();
+  final out = <int>[];
+  for (final c in chars) {
+    if (c == 0x30FC && out.isNotEmpty && isHiragana(out.last)) continue;
+    out.add(c);
+  }
+  while (out.length > 1 && (out.last == 0x3063 || out.last == 0x30C3)) {
+    out.removeLast();
+  }
+  return String.fromCharCodes(out);
+}

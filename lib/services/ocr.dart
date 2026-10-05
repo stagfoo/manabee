@@ -43,11 +43,28 @@ class Ocr {
     final ok = await Isolate.run(() => _cropForOcr(imagePath, region, out));
     if (!ok) return '';
     final result = await _r.processImage(InputImage.fromFilePath(out));
-    final pieces = [
-      for (final block in result.blocks)
-        for (final line in block.lines) OcrPiece(line.text, line.boundingBox),
+    return _read(result.blocks);
+  }
+
+  /// Per-character boxes when ML Kit gives them, so the reading order is
+  /// rebuilt from geometry (core/ocr_text.dart joinGlyphs); whole lines
+  /// otherwise.
+  static String _read(List<TextBlock> blocks) {
+    final glyphs = <OcrPiece>[
+      for (final block in blocks)
+        for (final line in block.lines)
+          for (final element in line.elements)
+            if (element.symbols.isNotEmpty)
+              for (final s in element.symbols) OcrPiece(s.text, s.boundingBox)
+            else
+              OcrPiece(element.text, element.boundingBox),
     ];
-    return joinPieces(pieces);
+    final allSingle = glyphs.every((g) => g.text.runes.length <= 1);
+    if (glyphs.isNotEmpty && allSingle) return joinGlyphs(glyphs);
+    return joinPieces([
+      for (final block in blocks)
+        for (final line in block.lines) OcrPiece(line.text, line.boundingBox),
+    ]);
   }
 
   /// Every block of text on the page, normalised to the page.
@@ -57,10 +74,7 @@ class Ocr {
       for (final block in result.blocks)
         if (block.text.trim().isNotEmpty)
           ScannedBlock(
-            joinPieces([
-              for (final line in block.lines)
-                OcrPiece(line.text, line.boundingBox),
-            ]),
+            _read([block]),
             normalizePixelRect(block.boundingBox, imageSize),
           ),
     ];

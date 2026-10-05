@@ -74,4 +74,19 @@ void main() {
     expect(segment(''), isEmpty);
     expect(lookupCandidates(''), isEmpty);
   });
+
+  test('ー after hiragana stays in the word', () {
+    expect(texts('いってきまーす'), ['いってきまーす']);
+    expect(texts('行きまーす'), ['行きまーす']);
+  });
+
+  test('ー in katakana is still a real long vowel', () {
+    expect(texts('ラーメンだ'), ['ラーメン', 'だ']);
+  });
+
+  test('chips are offered in the dictionary form', () {
+    expect(lookupCandidates('いってきまーす'), ['いってきます']);
+    expect(lookupCandidates('ばかっ！'), ['ばか']);
+    expect(lookupCandidates('ラーメン'), ['ラーメン']);
+  });
 }

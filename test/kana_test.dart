@@ -81,4 +81,25 @@ void main() {
       expect(containsJapanese('hello世界'), isTrue);
     });
   });
+
+  group('normalizeForLookup', () {
+    test('drops stretching ー after hiragana', () {
+      expect(normalizeForLookup('いってきまーす'), 'いってきます');
+      expect(normalizeForLookup('すごーーい'), 'すごい');
+    });
+
+    test('keeps ー in katakana', () {
+      expect(normalizeForLookup('ラーメン'), 'ラーメン');
+    });
+
+    test('drops a clipped trailing っ', () {
+      expect(normalizeForLookup('ばかっ'), 'ばか');
+      expect(normalizeForLookup('ヤバッ'), 'ヤバ');
+    });
+
+    test('leaves plain words and lone characters alone', () {
+      expect(normalizeForLookup(' 若い '), '若い');
+      expect(normalizeForLookup('っ'), 'っ');
+    });
+  });
 }

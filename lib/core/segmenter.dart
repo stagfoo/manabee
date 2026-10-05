@@ -101,6 +101,13 @@ _Class _classOf(int c) {
 List<Segment> segment(String text) {
   final chars = text.runes.map(String.fromCharCode).toList();
   final classes = text.runes.map(_classOf).toList();
+  // ー after hiragana is manga stretching (きまーす), part of the word —
+  // not a katakana word of its own.
+  for (var k = 1; k < chars.length; k++) {
+    if (chars[k] == 'ー' && classes[k - 1] == _Class.hiragana) {
+      classes[k] = _Class.hiragana;
+    }
+  }
   final out = <Segment>[];
   var i = 0;
 
@@ -169,11 +176,15 @@ List<Segment> segment(String text) {
   return out;
 }
 
-/// The distinct lookup-worthy pieces of [text], in reading order.
+/// The distinct lookup-worthy pieces of [text], in reading order, in the
+/// form the dictionary knows (see normalizeForLookup).
 List<String> lookupCandidates(String text) {
   final seen = <String>{};
-  return [
-    for (final s in segment(text))
-      if (s.lookupWorthy && seen.add(s.text)) s.text,
-  ];
+  final out = <String>[];
+  for (final s in segment(text)) {
+    if (!s.lookupWorthy) continue;
+    final q = normalizeForLookup(s.text);
+    if (q.isNotEmpty && seen.add(q)) out.add(q);
+  }
+  return out;
 }

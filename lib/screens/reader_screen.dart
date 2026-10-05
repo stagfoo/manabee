@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/geometry.dart';
+import '../core/kana.dart';
 import '../core/segmenter.dart';
 import '../models.dart';
 import '../services/jisho.dart';
@@ -139,7 +140,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   // ---- Lookup ----
 
   Future<void> _lookup(String q) async {
-    final query = q.trim();
+    // Looked up the way the dictionary knows it: きまーす as きます.
+    final query = normalizeForLookup(q);
     if (query.isEmpty) return;
     _query.text = query;
     setState(() {
