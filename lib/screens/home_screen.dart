@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'flashcards_screen.dart';
+import 'study_screen.dart';
 import 'import_screen.dart';
 import 'manga_screen.dart';
 
@@ -197,13 +197,7 @@ class _LearningCard extends StatelessWidget {
     final pct = total == 0 ? 0 : (learned * 100 / total).round();
 
     return InkWell(
-      onTap: total == 0
-          ? null
-          : () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => FlashcardsScreen(mangaId: manga.id),
-              ),
-            ),
+      onTap: total == 0 ? null : () => openFlashcards(context, manga.id),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: SizedBox(

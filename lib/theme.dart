@@ -189,3 +189,51 @@ ThemeData buildTheme() {
     ),
   );
 }
+
+/// Japanese at study size, from jlptbenkyo: a 14pt kanji is a smudge, and
+/// not being able to tell 待 from 持 looks exactly like not knowing them.
+class Jp {
+  static const word = TextStyle(
+    fontFamily: 'Outfit',
+    fontSize: 52,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+    color: C.text,
+  );
+  static const reading = TextStyle(
+    fontFamily: 'Outfit',
+    fontSize: 24,
+    height: 1.4,
+    color: C.lime,
+  );
+  static const sentence = TextStyle(
+    fontFamily: 'Outfit',
+    fontSize: 22,
+    height: 1.8,
+    color: C.text,
+  );
+}
+
+/// Anki's colours, which every SRS user already reads without labels:
+/// Again red, Hard orange, Good green, Easy blue.
+class Srs {
+  static const again = Color(0xFFE53935);
+  static const hard = Color(0xFFFB8C00);
+  static const good = Color(0xFF43A047);
+  static const easy = Color(0xFF1E88E5);
+
+  /// The three counts: new blue, learning red, review green.
+  static const newCards = Color(0xFF42A5F5);
+  static const learning = Color(0xFFEF5350);
+  static const review = Color(0xFF66BB6A);
+}
+
+/// A JLPT level's colour, as in jlptbenkyo, so the level reads at a glance.
+Color jlptColour(String? level) => switch (level) {
+  'N5' => const Color(0xFF43A047),
+  'N4' => const Color(0xFF1E88E5),
+  'N3' => const Color(0xFF8E24AA),
+  'N2' => const Color(0xFFF4511E),
+  'N1' => const Color(0xFFE53935),
+  _ => const Color(0xFF757575),
+};

@@ -44,6 +44,8 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - A forgotten card is relearned with its interval halved, not reset
 - Daily queue: reviews due today (most overdue first), learning cards, and a ration of new cards (default 20/day, set in Settings, shared across decks)
 - New / Learning / Review counts, Undo, and "study 10 more new cards" when you're done
+- Review screen laid out like jlptbenkyo / Anki: the word big under its JLPT level, the answer added under a rule (reading, meanings, all senses, the bubble it came from), red / orange / green / blue grade buttons, Anki's `new + learning + review` counts
+- Study tab: a "Due today" card with the counts and a Study button, words-learned progress, practice games below
 - "Learned" means a card that has reached a week-long interval
 - **Quiz**: multiple choice, alternating word → meaning and meaning → word (practice; doesn't change the schedule)
 - **Match**: pair Japanese tiles with meanings, timed, with a miss count (practice)

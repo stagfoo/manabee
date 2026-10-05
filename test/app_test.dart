@@ -43,7 +43,8 @@ void main() {
     await pump(tester);
     await tester.tap(find.byIcon(Icons.inventory_2_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('STUDY'), findsOneWidget);
+    expect(find.text('No flash cards yet.'), findsOneWidget);
+    expect(find.text('Practice'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded).last);
     await tester.pumpAndSettle();
     expect(find.text('No words yet'), findsOneWidget);
@@ -70,7 +71,23 @@ void main() {
     expect(find.text('Chapter 1 of 1 Completed'), findsOneWidget);
   });
 
-  testWidgets('flash card: show answer, Good, comes back in 10m, Undo', (
+  testWidgets('study tab shows today\'s counts and opens a session', (
+    tester,
+  ) async {
+    final lib = await pump(tester, (lib) => lib.saveWord('m', wakai()));
+    await tester.tap(find.byIcon(Icons.inventory_2_outlined));
+    await tester.pumpAndSettle();
+    expect(find.text('Due today'), findsOneWidget);
+    expect(find.text('Study 1'), findsOneWidget);
+    await tester.tap(find.text('Study 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Show answer'), findsOneWidget);
+    // Full screen, above the dock.
+    expect(find.byIcon(Icons.inventory_2_outlined), findsNothing);
+    await lib.save();
+  });
+
+  testWidgets('flash card: question, answer under a rule, grade, undo', (
     tester,
   ) async {
     final lib = await pump(tester, (lib) => lib.saveWord('m', wakai()));
@@ -78,13 +95,21 @@ void main() {
     nav.push(MaterialPageRoute(builder: (_) => const FlashcardsScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('wakai'), findsOneWidget);
-    expect(find.text('NEW'), findsOneWidget);
+    // Question side: the word and its level, nothing that gives it away.
+    expect(find.text('若い'), findsOneWidget);
+    expect(find.text('N5'), findsOneWidget);
+    expect(find.text('wakai'), findsNothing);
+    expect(find.text('young; youthful'), findsNothing);
+    expect(find.text('0 / 1'), findsOneWidget);
 
     await tester.tap(find.text('Show answer'));
     await tester.pumpAndSettle();
-    expect(find.text('jlpt n5'), findsOneWidget);
-    // The interval each button would give a brand-new card.
+    expect(find.text('若い'), findsOneWidget);
+    expect(find.text('わかい'), findsOneWidget);
+    expect(find.text('wakai'), findsOneWidget);
+    expect(find.text('young; youthful'), findsOneWidget);
+    // Each button carries the interval it would give a brand-new card.
+    expect(find.text('Again'), findsOneWidget);
     expect(find.text('1m'), findsNWidgets(2)); // Again, Hard
     expect(find.text('10m'), findsOneWidget); // Good
     expect(find.text('4d'), findsOneWidget); // Easy
@@ -93,7 +118,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(lib.words.single.review.isLearning, isTrue);
     // Nothing else to study, so the learning card is shown again early.
-    expect(find.text('wakai'), findsOneWidget);
+    expect(find.text('Show answer'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Undo'));
     await tester.pumpAndSettle();
@@ -102,7 +127,8 @@ void main() {
     await tester.tap(find.text('Easy'));
     await tester.pumpAndSettle();
     expect(lib.words.single.review.intervalDays, kEasyIntervalDays);
-    expect(find.text('All caught up'), findsOneWidget);
+    expect(find.text('1 reviewed'), findsOneWidget);
+    expect(find.textContaining('Congratulations'), findsOneWidget);
 
     await lib.save();
   });

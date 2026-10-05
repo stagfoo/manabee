@@ -1,10 +1,12 @@
-/// The Study tab: pick a deck (every word, or one manga's), then flash
-/// cards, the quiz, or the matching game.
+/// The Study tab, laid out like jlptbenkyo's home: pick a deck (every word,
+/// or one manga's), see what's due today and study it, then practice games
+/// underneath.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../core/games.dart';
+import '../core/srs.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -18,6 +20,12 @@ GameCard gameCardOf(Word w) => GameCard(
   reading: w.entry.reading,
   meaning: w.entry.shortMeaning,
 );
+
+/// Flash cards run full screen, above the dock, as a review does in Anki.
+void openFlashcards(BuildContext context, String? mangaId) => Navigator.of(
+  context,
+  rootNavigator: true,
+).push(MaterialPageRoute(builder: (_) => FlashcardsScreen(mangaId: mangaId)));
 
 class StudyScreen extends StatefulWidget {
   const StudyScreen({super.key});
@@ -48,8 +56,6 @@ class _StudyScreenState extends State<StudyScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         children: [
-          Text('STUDY', style: T.headlineMd.copyWith(letterSpacing: 4)),
-          const SizedBox(height: 12),
           SizedBox(
             height: 36,
             child: ListView(
@@ -70,44 +76,33 @@ class _StudyScreenState extends State<StudyScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              _Stat(label: 'NEW', value: '${today.newCards}', color: C.violet),
-              _Stat(
-                label: 'LEARNING',
-                value: '${today.learning}',
-                color: C.danger,
-              ),
-              _Stat(label: 'REVIEW', value: '${today.review}', color: C.mint),
-              _Stat(label: 'LEARNED', value: '$learned/${words.length}'),
-            ],
+          _DueCard(
+            today: today,
+            deckSize: words.length,
+            onStart: () => openFlashcards(context, _mangaId),
+          ),
+          const SizedBox(height: 8),
+          _Panel(
+            child: _ProgressRow(
+              label: 'Words learned',
+              learned: learned,
+              total: words.length,
+            ),
           ),
           const SizedBox(height: 20),
-          _GameCard(
-            title: 'Flash Cards',
-            subtitle: today.total > 0
-                ? '${today.total} to study today · Again / Hard / Good / Easy'
-                : 'All caught up · next reviews come back on their own',
-            emoji: '🃏',
-            color: C.violet,
-            enabled: words.isNotEmpty,
-            onTap: () => open(FlashcardsScreen(mangaId: _mangaId)),
-          ),
-          _GameCard(
+          Text('Practice', style: T.pill.copyWith(color: C.textDim)),
+          const SizedBox(height: 8),
+          _Tile(
+            icon: Icons.quiz_outlined,
             title: 'Quiz',
-            subtitle: 'Practice — pick the meaning, then the word',
-            emoji: '❓',
-            color: C.lime,
-            dark: true,
+            subtitle: 'Pick the meaning, then the word',
             enabled: words.length >= kMinQuizWords,
             onTap: () => open(QuizScreen(mangaId: _mangaId)),
           ),
-          _GameCard(
+          _Tile(
+            icon: Icons.extension_outlined,
             title: 'Match',
-            subtitle: 'Practice — pair each word with its meaning',
-            emoji: '🧩',
-            color: C.mint,
-            dark: true,
+            subtitle: 'Pair each word with its meaning',
             enabled: words.length >= kMinMatchWords,
             onTap: () => open(MatchScreen(mangaId: _mangaId)),
           ),
@@ -149,99 +144,193 @@ class _DeckChip extends StatelessWidget {
   );
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value, this.color = C.text});
+class _Panel extends StatelessWidget {
+  const _Panel({required this.child});
 
-  final String label;
-  final String value;
-  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: C.surface,
+    elevation: 0,
+    margin: EdgeInsets.zero,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: const BorderSide(color: C.border),
+    ),
+    child: Padding(padding: const EdgeInsets.all(20), child: child),
+  );
+}
+
+/// What's due today and the button to study it — jlptbenkyo's due card,
+/// with Anki's colours for the three counts.
+class _DueCard extends StatelessWidget {
+  const _DueCard({
+    required this.today,
+    required this.deckSize,
+    required this.onStart,
+  });
+
+  final DueCounts today;
+  final int deckSize;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (today.total == 0)
+            Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 28,
+                  color: C.lime,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    deckSize == 0
+                        ? 'No flash cards yet.'
+                        : 'Done for today — nothing due right now.',
+                    style: T.bodyLg,
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            Text('Due today', style: T.pill.copyWith(color: C.textDim)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _Count('${today.newCards}', 'new', Srs.newCards),
+                _Count('${today.learning}', 'learning', Srs.learning),
+                _Count('${today.review}', 'review', Srs.review),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: C.lime,
+                  foregroundColor: C.onLime,
+                  minimumSize: const Size(0, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: T.pill.copyWith(fontSize: 16),
+                ),
+                onPressed: onStart,
+                child: Text('Study ${today.total}'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Count extends StatelessWidget {
+  const _Count(this.value, this.label, this.colour);
+
+  final String value, label;
+  final Color colour;
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: C.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: C.border),
-      ),
-      child: Column(
-        children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(value, style: T.headlineLg.copyWith(color: color)),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: T.headlineLg.copyWith(
+            fontSize: 30,
+            color: colour,
+            fontWeight: FontWeight.w600,
           ),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(label, style: T.monoSm),
-          ),
-        ],
-      ),
+        ),
+        Text(label, style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12)),
+      ],
     ),
   );
 }
 
-class _GameCard extends StatelessWidget {
-  const _GameCard({
-    required this.title,
-    required this.subtitle,
-    required this.emoji,
-    required this.color,
-    required this.enabled,
-    required this.onTap,
-    this.dark = false,
+class _ProgressRow extends StatelessWidget {
+  const _ProgressRow({
+    required this.label,
+    required this.learned,
+    required this.total,
   });
 
-  final String title;
-  final String subtitle;
-  final String emoji;
-  final Color color;
+  final String label;
+  final int learned;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: T.bodyLg),
+          Text('$learned / $total', style: T.bodyMd.copyWith(color: C.textDim)),
+        ],
+      ),
+      const SizedBox(height: 8),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: LinearProgressIndicator(
+          value: total == 0 ? 0 : learned / total,
+          minHeight: 8,
+          backgroundColor: C.track,
+          color: C.lime,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Learned = reached a week between reviews.',
+        style: T.bodyMd.copyWith(color: C.inactive, fontSize: 11),
+      ),
+    ],
+  );
+}
+
+class _Tile extends StatelessWidget {
+  const _Tile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title, subtitle;
   final bool enabled;
-  final bool dark;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final fg = dark ? C.onLime : C.text;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Opacity(
-        opacity: enabled ? 1 : 0.35,
-        child: Material(
-          color: color,
-          borderRadius: BorderRadius.circular(24),
-          child: InkWell(
-            onTap: enabled ? onTap : null,
-            borderRadius: BorderRadius.circular(24),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: T.headlineMd.copyWith(color: fg, fontSize: 22),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: T.bodyMd.copyWith(
-                            color: fg.withValues(alpha: 0.75),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(emoji, style: const TextStyle(fontSize: 40)),
-                ],
-              ),
-            ),
-          ),
-        ),
+    return Card(
+      color: C.surface,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: C.border),
+      ),
+      child: ListTile(
+        enabled: enabled,
+        leading: Icon(icon, color: enabled ? C.lime : C.inactive),
+        title: Text(title, style: T.bodyLg),
+        subtitle: Text(subtitle, style: T.bodyMd.copyWith(color: C.textDim)),
+        trailing: const Icon(Icons.chevron_right_rounded, color: C.textDim),
+        onTap: onTap,
       ),
     );
   }

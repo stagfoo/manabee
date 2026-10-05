@@ -1,25 +1,25 @@
-/// Flash cards, run the way Anki runs them.
+/// Flash cards, laid out like jlptbenkyo's review screen and run like
+/// Anki.
 ///
-/// Front: furigana, the word, romaji; tap or Show answer to flip. Back:
-/// the full entry and four buttons — Again, Hard, Good, Easy — each
-/// labelled with when the card will come back. The session holds today's
-/// due reviews, cards still in learning, and the day's ration of new cards
-/// (core/srs.dart). Cards still being learned come back within the
-/// sitting, after their 1- and 10-minute steps.
+/// The question shows as little as possible: the word, big, under its JLPT
+/// level. Show answer keeps the question on screen and adds the answer
+/// under a rule, as Anki does — the reading, the meanings, and the bubble
+/// the word was found in. Four buttons grade it, each labelled with when
+/// the card comes back. The session itself (what's due, learning steps,
+/// the daily ration of new cards) is core/srs.dart's StudySession.
 library;
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/srs.dart';
 import '../models.dart';
+import '../services/speech.dart';
 import '../services/store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import '../widgets/entry_detail.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   const FlashcardsScreen({super.key, this.mangaId});
@@ -32,8 +32,8 @@ class FlashcardsScreen extends StatefulWidget {
 
 class _FlashcardsScreenState extends State<FlashcardsScreen> {
   late StudySession _session;
-  bool _flipped = false;
-  int _reviewed = 0;
+  bool _revealed = false;
+  int _answered = 0;
 
   /// Repaints while waiting on a learning step, so the card appears when
   /// it's due without a tap.
@@ -42,7 +42,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   @override
   void initState() {
     super.initState();
-    _start();
+    final lib = AppScope.read(context);
+    _session = StudySession(
+      {for (final w in lib.wordsFor(widget.mangaId)) w.id: w.review},
+      DateTime.now(),
+      newLimit: lib.newAllowanceToday(),
+    );
     _tick = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() {});
     });
@@ -54,22 +59,13 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     super.dispose();
   }
 
-  void _start() {
-    final lib = AppScope.read(context);
-    _session = StudySession(
-      {for (final w in lib.wordsFor(widget.mangaId)) w.id: w.review},
-      DateTime.now(),
-      newLimit: lib.newAllowanceToday(),
-    );
-  }
-
-  void _answer(String id, Grade grade) {
+  void _grade(String id, Grade grade) {
     final state = _session.answer(id, grade, DateTime.now());
     AppScope.read(context).setReview(id, state);
     HapticFeedback.selectionClick();
     setState(() {
-      _flipped = false;
-      _reviewed++;
+      _revealed = false;
+      _answered++;
     });
   }
 
@@ -78,15 +74,14 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     if (undone == null) return;
     AppScope.read(context).setReview(undone.$1, undone.$2);
     setState(() {
-      _flipped = true;
-      _reviewed = math.max(0, _reviewed - 1);
+      _revealed = true;
+      if (_answered > 0) _answered--;
     });
   }
 
   void _moreNew() {
-    final lib = AppScope.read(context);
     final added = _session.addNew(
-      lib.wordsFor(widget.mangaId).map((w) => w.id),
+      AppScope.read(context).wordsFor(widget.mangaId).map((w) => w.id),
       10,
     );
     setState(() {});
@@ -100,121 +95,109 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     final now = DateTime.now();
     final id = _session.current(now);
     final word = id == null ? null : byId[id];
+    final remaining =
+        _session.newCount + _session.learningCount + _session.reviewCount;
+    final total = _answered + remaining;
 
-    return GridScaffold(
-      header: false,
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 16, 28, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Scaffold(
+      backgroundColor: C.ground,
+      appBar: AppBar(
+        backgroundColor: C.ground,
+        foregroundColor: C.text,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          tooltip: 'Close',
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+        title: Text(
+          word == null ? 'Flash cards' : '$_answered / $total',
+          style: T.headlineMd,
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Undo',
+            onPressed: _session.canUndo ? _undo : null,
+            icon: const Icon(Icons.undo_rounded),
+          ),
+          if (word != null)
+            IconButton(
+              tooltip: 'Say it',
+              icon: const Icon(Icons.volume_up_outlined),
+              onPressed: () => _say(context, word.entry),
+            ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(4),
+          child: LinearProgressIndicator(
+            value: total == 0 ? 1 : _answered / total,
+            minHeight: 4,
+            backgroundColor: C.track,
+            color: C.lime,
+          ),
+        ),
+      ),
+      body: word == null
+          ? _done(lib, now)
+          : Column(
               children: [
                 Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'FLASH CARDS',
-                      style: T.headlineMd.copyWith(
-                        letterSpacing: 4,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  child: _Face(
+                    key: ValueKey('${word.id}:$_revealed'),
+                    word: word,
+                    revealed: _revealed,
+                    mangaTitle: lib.mangaById(word.mangaId)?.title,
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _Counts(
+                          newCards: _session.newCount,
+                          learning: _session.learningCount,
+                          review: _session.reviewCount,
+                          current: word.review,
+                        ),
+                        const SizedBox(height: 12),
+                        _revealed
+                            ? _GradeRow(
+                                previews: previewAll(word.review, now),
+                                now: now,
+                                onGrade: (g) => _grade(word.id, g),
+                              )
+                            : _BigButton(
+                                label: 'Show answer',
+                                onPressed: () =>
+                                    setState(() => _revealed = true),
+                              ),
+                      ],
                     ),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Undo',
-                  onPressed: _session.canUndo ? _undo : null,
-                  icon: Icon(
-                    Icons.undo_rounded,
-                    color: _session.canUndo ? C.text : C.inactive,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.maybePop(context),
-                  icon: const Icon(Icons.close_rounded, color: C.textDim),
                 ),
               ],
             ),
-            _Counts(
-              newCards: _session.newCount,
-              learning: _session.learningCount,
-              review: _session.reviewCount,
-              current: word == null ? null : _kindOf(word.review),
-            ),
-            const SizedBox(height: 24),
-            if (word == null)
-              Expanded(child: _done(lib, now))
-            else ...[
-              // Square when there's room, smaller when there isn't — a
-              // short landscape screen can't fit a full-width square.
-              Expanded(
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: 1.0,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _flipped = !_flipped),
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(end: _flipped ? math.pi : 0),
-                        duration: const Duration(milliseconds: 380),
-                        curve: Curves.easeInOutCubic,
-                        builder: (context, angle, _) {
-                          final showBack = angle > math.pi / 2;
-                          return Transform(
-                            alignment: Alignment.center,
-                            transform: Matrix4.identity()
-                              ..setEntry(3, 2, 0.0012)
-                              ..rotateY(angle),
-                            child: showBack
-                                ? Transform(
-                                    alignment: Alignment.center,
-                                    transform: Matrix4.identity()
-                                      ..rotateY(math.pi),
-                                    child: _Back(word),
-                                  )
-                                : _Front(word),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (_flipped)
-                _GradeRow(
-                  previews: previewAll(word.review, now),
-                  now: now,
-                  onGrade: (g) => _answer(word.id, g),
-                )
-              else
-                LimeButton(
-                  label: 'Show answer',
-                  onPressed: () => setState(() => _flipped = true),
-                ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
   Widget _done(Library lib, DateTime now) {
     final nextLearning = _session.nextLearningDue;
     if (nextLearning != null) {
-      return EmptyState(
-        emoji: '⏳',
+      return _DoneMessage(
+        icon: Icons.hourglass_top_rounded,
         title: 'Learning cards coming up',
         body:
-            'The next one is due in ${formatInterval(nextLearning.difference(now))}. '
+            'The next is due in ${formatInterval(nextLearning.difference(now))}. '
             'Stay here and it appears on its own.',
       );
     }
-    final deckWords = lib.wordsFor(widget.mangaId);
-    final newLeft = deckWords.where((w) => w.review.isNew).length;
+    final deck = lib.wordsFor(widget.mangaId);
+    final newLeft = deck.where((w) => w.review.isNew).length;
     DateTime? nextDue;
-    for (final w in deckWords) {
+    for (final w in deck) {
       final d = w.review.due;
       if (d != null &&
           d.isAfter(now) &&
@@ -222,37 +205,265 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         nextDue = d;
       }
     }
-    return EmptyState(
-      emoji: '🎉',
-      title: deckWords.isEmpty ? 'No cards yet' : 'All caught up',
+    return _DoneMessage(
+      icon: Icons.check_circle_outline_rounded,
+      title: deck.isEmpty
+          ? 'No cards yet'
+          : _answered > 0
+          ? '$_answered reviewed'
+          : 'Nothing due right now',
       body: [
-        if (_reviewed > 0)
-          'You reviewed $_reviewed card${_reviewed == 1 ? '' : 's'}.',
+        if (deck.isNotEmpty)
+          'Congratulations! You have finished this deck for now.',
         if (nextDue != null)
           'Next review in ${formatInterval(nextDue.difference(now))}.',
-        if (newLeft > 0) '$newLeft new card${newLeft == 1 ? '' : 's'} waiting.',
       ].join(' '),
-      action: newLeft > 0
-          ? GhostButton(
-              label: 'Study 10 more new cards',
-              icon: Icons.add_rounded,
-              onPressed: _moreNew,
-            )
-          : null,
+      actions: [
+        if (newLeft > 0) ...[
+          OutlinedButton.icon(
+            onPressed: _moreNew,
+            icon: const Icon(Icons.add_rounded),
+            label: Text('Study 10 more new cards ($newLeft left)'),
+          ),
+          const SizedBox(height: 12),
+        ],
+        _BigButton(label: 'Back', onPressed: () => Navigator.maybePop(context)),
+      ],
     );
   }
 }
 
-enum _Kind { newCard, learning, review }
+Future<void> _say(BuildContext context, Entry e) async {
+  final problem = await Speech.instance.say(
+    e.reading.isEmpty ? e.word : e.reading,
+  );
+  if (problem != null && context.mounted) toast(context, problem);
+}
 
-_Kind _kindOf(ReviewState s) => s.isNew
-    ? _Kind.newCard
-    : s.isLearning
-    ? _Kind.learning
-    : _Kind.review;
+/// One card. The question part never moves when the answer appears — only
+/// the part below the rule is added — so your eye stays on the word.
+class _Face extends StatelessWidget {
+  const _Face({
+    super.key,
+    required this.word,
+    required this.revealed,
+    this.mangaTitle,
+  });
 
-/// New · Learning · Review, Anki's three counts, with the current card's
-/// count underlined.
+  final Word word;
+  final bool revealed;
+  final String? mangaTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = word.entry;
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 16),
+        Center(child: _LevelChip(e.jlpt)),
+        const SizedBox(height: 16),
+        Center(
+          child: Text(e.word, style: Jp.word, textAlign: TextAlign.center),
+        ),
+        if (revealed) ...[
+          const SizedBox(height: 12),
+          const Divider(color: C.border, thickness: 1, height: 24),
+          // The reading is only worth showing when it differs from the
+          // written form; a kana word already is its reading.
+          if (e.hasKanji) Center(child: Text(e.reading, style: Jp.reading)),
+          Center(
+            child: Text(
+              e.romaji,
+              style: T.monoBold.copyWith(color: C.textDim, fontSize: 14),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: Text(
+              e.shortMeaning,
+              textAlign: TextAlign.center,
+              style: T.headlineMd.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          if (e.senses.isNotEmpty &&
+              e.senses.first.partsOfSpeech.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Center(
+              child: Text(
+                e.senses.first.partsOfSpeech.join(', '),
+                textAlign: TextAlign.center,
+                style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+              ),
+            ),
+          ],
+          if (e.common || e.wanikani != null) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Wrap(
+                spacing: 6,
+                alignment: WrapAlignment.center,
+                children: [
+                  if (e.common) const _Tag('common'),
+                  if (e.wanikani != null) _Tag('WaniKani ${e.wanikani}'),
+                ],
+              ),
+            ),
+          ],
+          if (e.senses.length > 1 ||
+              (e.senses.isNotEmpty && e.senses.first.glosses.length > 2)) ...[
+            const SizedBox(height: 16),
+            _Senses(e),
+          ],
+          if (word.context.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ContextCard(text: word.context, source: mangaTitle),
+          ],
+        ],
+      ],
+    );
+  }
+}
+
+class _LevelChip extends StatelessWidget {
+  const _LevelChip(this.level);
+
+  final String? level;
+
+  @override
+  Widget build(BuildContext context) {
+    final colour = jlptColour(level);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: colour.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        level ?? 'not on a JLPT list',
+        style: T.pill.copyWith(color: level == null ? C.textDim : colour),
+      ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Chip(
+    label: Text(label, style: T.bodyMd.copyWith(fontSize: 11)),
+    visualDensity: VisualDensity.compact,
+    backgroundColor: C.surface,
+    side: const BorderSide(color: C.border),
+  );
+}
+
+/// Every sense, numbered, for words with more than the one-line meaning.
+class _Senses extends StatelessWidget {
+  const _Senses(this.entry);
+
+  final Entry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: C.surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < entry.senses.length && i < 6; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${i + 1}. ',
+                        style: const TextStyle(color: C.textDim),
+                      ),
+                      TextSpan(text: entry.senses[i].glosses.join('; ')),
+                      if (entry.senses[i].partsOfSpeech.isNotEmpty)
+                        TextSpan(
+                          text: '  ${entry.senses[i].partsOfSpeech.join(', ')}',
+                          style: const TextStyle(
+                            color: C.inactive,
+                            fontSize: 11,
+                          ),
+                        ),
+                    ],
+                  ),
+                  style: T.bodyMd,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The bubble the word came from — what jlptbenkyo shows as an example
+/// sentence, except this one is from your own book.
+class _ContextCard extends StatelessWidget {
+  const _ContextCard({required this.text, this.source});
+
+  final String text;
+  final String? source;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: C.surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 6, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              source == null
+                  ? 'FROM THE PAGE'
+                  : 'FROM ${source!.toUpperCase()}',
+              style: T.monoSm,
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(text, style: Jp.sentence),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Say the sentence',
+                icon: const Icon(Icons.volume_up_outlined, color: C.textDim),
+                onPressed: () async {
+                  final problem = await Speech.instance.say(text);
+                  if (problem != null && context.mounted) {
+                    toast(context, problem);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Anki's "12 + 3 + 20": new, learning, review, with the count the current
+/// card belongs to underlined.
 class _Counts extends StatelessWidget {
   const _Counts({
     required this.newCards,
@@ -264,43 +475,41 @@ class _Counts extends StatelessWidget {
   final int newCards;
   final int learning;
   final int review;
-  final _Kind? current;
+  final ReviewState current;
 
   @override
   Widget build(BuildContext context) {
-    Widget count(int n, String label, Color color, _Kind kind) {
-      final on = current == kind;
-      return Padding(
-        padding: const EdgeInsets.only(right: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$n',
-              style: T.headlineMd.copyWith(
-                color: color,
-                decoration: on ? TextDecoration.underline : null,
-                decorationColor: color,
-                decorationThickness: 2,
-              ),
-            ),
-            Text(label, style: T.monoSm),
-          ],
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        count(newCards, 'NEW', C.violet, _Kind.newCard),
-        count(learning, 'LEARNING', C.danger, _Kind.learning),
-        count(review, 'REVIEW', C.mint, _Kind.review),
-      ],
+    TextSpan count(int n, Color colour, bool on) => TextSpan(
+      text: '$n',
+      style: TextStyle(
+        color: colour,
+        fontWeight: FontWeight.w700,
+        decoration: on ? TextDecoration.underline : null,
+        decorationColor: colour,
+        decorationThickness: 2.5,
+      ),
+    );
+    const plus = TextSpan(
+      text: '  +  ',
+      style: TextStyle(color: C.inactive),
+    );
+    return Text.rich(
+      TextSpan(
+        children: [
+          count(newCards, Srs.newCards, current.isNew),
+          plus,
+          count(learning, Srs.learning, current.isLearning),
+          plus,
+          count(review, Srs.review, current.isReview),
+        ],
+      ),
+      style: T.bodyLg.copyWith(fontSize: 18),
     );
   }
 }
 
-/// Again · Hard · Good · Easy, each with when the card would come back.
+/// Again · Hard · Good · Easy, each labelled with where the card lands.
+/// Big targets: a mis-tap here costs a card weeks of schedule.
 class _GradeRow extends StatelessWidget {
   const _GradeRow({
     required this.previews,
@@ -312,147 +521,117 @@ class _GradeRow extends StatelessWidget {
   final DateTime now;
   final ValueChanged<Grade> onGrade;
 
-  static const _labels = {
-    Grade.again: ('Again', C.danger, Colors.black),
-    Grade.hard: ('Hard', C.elevated, C.text),
-    Grade.good: ('Good', C.lime, C.onLime),
-    Grade.easy: ('Easy', C.mint, Colors.black),
+  static const _buttons = {
+    Grade.again: ('Again', Srs.again),
+    Grade.hard: ('Hard', Srs.hard),
+    Grade.good: ('Good', Srs.good),
+    Grade.easy: ('Easy', Srs.easy),
   };
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        for (final g in Grade.values)
+        for (final g in Grade.values) ...[
+          if (g != Grade.again) const SizedBox(width: 8),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: Column(
-                children: [
-                  Text(
-                    formatInterval(previews[g]!.due!.difference(now)),
-                    style: T.monoSm.copyWith(color: C.textDim, fontSize: 11),
-                  ),
-                  const SizedBox(height: 6),
-                  Material(
-                    color: _labels[g]!.$2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: g == Grade.hard
-                          ? const BorderSide(color: C.ghostBorder, width: 1.5)
-                          : BorderSide.none,
-                    ),
-                    child: InkWell(
-                      onTap: () => onGrade(g),
-                      borderRadius: BorderRadius.circular(14),
-                      child: SizedBox(
-                        height: 48,
-                        child: Center(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              _labels[g]!.$1,
-                              style: T.pill.copyWith(
-                                color: _labels[g]!.$3,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: _buttons[g]!.$2,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 60),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Front extends StatelessWidget {
-  const _Front(this.word);
-
-  final Word word;
-
-  @override
-  Widget build(BuildContext context) {
-    final e = word.entry;
-    return Container(
-      decoration: BoxDecoration(
-        color: C.violet,
-        borderRadius: BorderRadius.circular(24),
-        border: const Border(
-          bottom: BorderSide(color: Color(0x4D000000), width: 2),
-        ),
-      ),
-      child: Stack(
-        children: [
-          const Positioned(
-            top: 16,
-            right: 16,
-            child: Icon(Icons.u_turn_left_rounded, color: Colors.white),
-          ),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
+              onPressed: () => onGrade(g),
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (e.hasKanji)
-                      Text(e.reading, style: T.jp.copyWith(fontSize: 18)),
                     Text(
-                      e.word,
-                      style: T.jp.copyWith(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w800,
-                        height: 1.25,
+                      _buttons[g]!.$1,
+                      style: T.pill.copyWith(color: Colors.white, fontSize: 16),
+                    ),
+                    Text(
+                      formatInterval(previews[g]!.due!.difference(now)),
+                      style: T.bodyMd.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 11,
                       ),
                     ),
-                    Text(e.romaji, style: T.headlineXl.copyWith(fontSize: 40)),
                   ],
                 ),
               ),
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
 
-class _Back extends StatelessWidget {
-  const _Back(this.word);
+class _BigButton extends StatelessWidget {
+  const _BigButton({required this.label, required this.onPressed});
 
-  final Word word;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: FilledButton(
+      style: FilledButton.styleFrom(
+        backgroundColor: C.lime,
+        foregroundColor: C.onLime,
+        minimumSize: const Size(0, 60),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: T.pill.copyWith(fontSize: 16),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
+    ),
+  );
+}
+
+class _DoneMessage extends StatelessWidget {
+  const _DoneMessage({
+    required this.icon,
+    required this.title,
+    required this.body,
+    this.actions = const [],
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF26262B),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Stack(
-        children: [
-          const Positioned(
-            top: 16,
-            right: 16,
-            child: Icon(
-              Icons.subdirectory_arrow_right_rounded,
-              color: Colors.white,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 44, 18, 18),
-            child: SingleChildScrollView(
-              child: EntryDetail(word.entry, context_: word.context),
-            ),
-          ),
-        ],
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 64, color: C.lime),
+            const SizedBox(height: 16),
+            Text(title, style: T.headlineLg, textAlign: TextAlign.center),
+            if (body.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                body,
+                style: T.bodyMd.copyWith(color: C.textDim),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 24),
+            ...actions,
+          ],
+        ),
       ),
     );
   }
