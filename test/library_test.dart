@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:manabee/core/srs.dart';
 import 'package:manabee/models.dart';
 import 'package:manabee/services/store.dart';
 
@@ -84,9 +85,10 @@ void main() {
     final lib = Library(MemoryStorage());
     final e = entry('虫', 'むし', 'bug');
     expect(lib.saveWord('m1', e), isTrue);
-    lib.answer(lib.words.single, knewIt: true);
+    final answered = lib.words.single.review.answer(Grade.good, DateTime.now());
+    lib.setReview(lib.words.single.id, answered);
     expect(lib.saveWord('m1', e), isFalse);
-    expect(lib.words.single.review.box, 1);
+    expect(lib.words.single.review, answered);
     // Same word from another manga is its own card.
     expect(lib.saveWord('m2', e), isTrue);
     expect(lib.wordsFor('m1').length, 1);
@@ -145,5 +147,32 @@ void main() {
     expect(j['version'], 1);
     expect((j['mangas'] as List).length, 1);
     lib.dispose();
+  });
+
+  test('new cards per day is shared across decks', () {
+    final lib = Library(MemoryStorage());
+    lib.settings.newPerDay = 3;
+    for (final w in ['虫', '朝', '森', '光']) {
+      lib.saveWord(w == '光' ? 'm2' : 'm1', entry(w, '', w));
+    }
+    expect(lib.dueToday('m1').newCards, 3);
+    final now = DateTime.now();
+    lib.setReview(lib.words[0].id, lib.words[0].review.answer(Grade.good, now));
+    lib.setReview(lib.words[1].id, lib.words[1].review.answer(Grade.good, now));
+    expect(lib.newAllowanceToday(now), 1);
+    expect(lib.dueToday('m2').newCards, 1);
+    expect(lib.dueToday(null).learning, 2);
+    lib.dispose();
+  });
+
+  test('settings keep the daily new-card limit', () async {
+    final storage = MemoryStorage();
+    final lib = Library(storage)..settings.newPerDay = 7;
+    await lib.save();
+    final again = Library(storage);
+    await again.load();
+    expect(again.settings.newPerDay, 7);
+    lib.dispose();
+    again.dispose();
   });
 }

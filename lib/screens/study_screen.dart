@@ -35,7 +35,7 @@ class _StudyScreenState extends State<StudyScreen> {
     final lib = AppScope.library(context);
     if (_mangaId != null && lib.mangaById(_mangaId!) == null) _mangaId = null;
     final words = lib.wordsFor(_mangaId);
-    final due = lib.dueWords(_mangaId);
+    final today = lib.dueToday(_mangaId);
     final learned = lib.learnedCount(_mangaId);
     final withWords = lib.recent
         .where((m) => lib.wordsFor(m.id).isNotEmpty)
@@ -72,17 +72,22 @@ class _StudyScreenState extends State<StudyScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              _Stat(label: 'WORDS', value: '${words.length}'),
-              _Stat(label: 'DUE', value: '$due', color: C.lime),
-              _Stat(label: 'LEARNED', value: '$learned', color: C.mint),
+              _Stat(label: 'NEW', value: '${today.newCards}', color: C.violet),
+              _Stat(
+                label: 'LEARNING',
+                value: '${today.learning}',
+                color: C.danger,
+              ),
+              _Stat(label: 'REVIEW', value: '${today.review}', color: C.mint),
+              _Stat(label: 'LEARNED', value: '$learned/${words.length}'),
             ],
           ),
           const SizedBox(height: 20),
           _GameCard(
             title: 'Flash Cards',
-            subtitle: due > 0
-                ? '$due due now · 👍 / 👎 to schedule'
-                : 'Run through the deck · 👍 / 👎',
+            subtitle: today.total > 0
+                ? '${today.total} to study today · Again / Hard / Good / Easy'
+                : 'All caught up · next reviews come back on their own',
             emoji: '🃏',
             color: C.violet,
             enabled: words.isNotEmpty,
@@ -90,7 +95,7 @@ class _StudyScreenState extends State<StudyScreen> {
           ),
           _GameCard(
             title: 'Quiz',
-            subtitle: 'Pick the meaning, then the word',
+            subtitle: 'Practice — pick the meaning, then the word',
             emoji: '❓',
             color: C.lime,
             dark: true,
@@ -99,7 +104,7 @@ class _StudyScreenState extends State<StudyScreen> {
           ),
           _GameCard(
             title: 'Match',
-            subtitle: 'Pair each word with its meaning',
+            subtitle: 'Practice — pair each word with its meaning',
             emoji: '🧩',
             color: C.mint,
             dark: true,
@@ -163,8 +168,14 @@ class _Stat extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(value, style: T.headlineLg.copyWith(color: color)),
-          Text(label, style: T.monoSm),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: T.headlineLg.copyWith(color: color)),
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label, style: T.monoSm),
+          ),
         ],
       ),
     ),

@@ -341,20 +341,31 @@ class Word {
 }
 
 class Settings {
-  Settings({this.rightToLeft = true, this.speechRate = 0.45});
+  Settings({
+    this.rightToLeft = true,
+    this.speechRate = 0.45,
+    this.newPerDay = 20,
+  });
 
   /// Manga reads right to left; swiping to the next page goes the same way.
   bool rightToLeft;
   double speechRate;
 
+  /// New flash cards introduced per day, across every deck. Each new card
+  /// turns into roughly ten reviews over the following months, so this is
+  /// what decides how heavy the daily load gets.
+  int newPerDay;
+
   Map<String, dynamic> toJson() => {
     'rightToLeft': rightToLeft,
     'speechRate': speechRate,
+    'newPerDay': newPerDay,
   };
 
   factory Settings.fromJson(Map<String, dynamic>? j) => Settings(
     rightToLeft: j?['rightToLeft'] as bool? ?? true,
     speechRate: (j?['speechRate'] as num?)?.toDouble() ?? 0.45,
+    newPerDay: ((j?['newPerDay'] as num?)?.toInt() ?? 20).clamp(0, 200),
   );
 }
 

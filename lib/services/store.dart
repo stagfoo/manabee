@@ -212,16 +212,32 @@ class Library extends ChangeNotifier {
     changed();
   }
 
-  void answer(Word w, {required bool knewIt}) {
-    w.review = w.review.answer(knewIt: knewIt, now: DateTime.now());
+  /// Writes a card's new schedule (an answer, or an undo).
+  void setReview(String wordId, ReviewState state) {
+    final w = words.where((w) => w.id == wordId).firstOrNull;
+    if (w == null) return;
+    w.review = state;
     changed();
   }
 
   int learnedCount(String? mangaId) =>
       wordsFor(mangaId).where((w) => w.review.learned).length;
 
-  int dueWords(String? mangaId) =>
-      dueCount(wordsFor(mangaId), (w) => w.review, DateTime.now());
+  /// New cards still allowed today. The daily limit is across every deck,
+  /// as it's one person's daily effort, not one book's.
+  int newAllowanceToday([DateTime? now]) {
+    final introduced = introducedToday(
+      words.map((w) => w.review),
+      now ?? DateTime.now(),
+    );
+    return (settings.newPerDay - introduced).clamp(0, settings.newPerDay);
+  }
+
+  DueCounts dueToday(String? mangaId, [DateTime? now]) => countDue(
+    wordsFor(mangaId).map((w) => w.review),
+    now ?? DateTime.now(),
+    newPerDay: newAllowanceToday(now),
+  );
 
   @override
   void dispose() {

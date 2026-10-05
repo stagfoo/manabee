@@ -36,6 +36,34 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               ListTile(
+                title: Text(
+                  'New flash cards per day: ${s.newPerDay}',
+                  style: T.bodyLg,
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Slider(
+                      value: s.newPerDay.toDouble(),
+                      min: 0,
+                      max: 50,
+                      divisions: 10,
+                      label: '${s.newPerDay}',
+                      onChanged: (v) {
+                        s.newPerDay = v.round();
+                        lib.changed();
+                      },
+                    ),
+                    Text(
+                      'Across every deck. Each new card turns into about ten '
+                      'reviews over the next months — keep it low if '
+                      'reviews pile up.',
+                      style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              ListTile(
                 title: Text('Speech speed', style: T.bodyLg),
                 subtitle: Slider(
                   value: s.speechRate,

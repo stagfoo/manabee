@@ -38,10 +38,15 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Saved words keep their full dictionary entry, so they work offline
 
 **Study**
-- **Flash cards**: furigana / kanji / romaji front, full entry on the back, 👍 / 👎 grading
-- Leitner spaced repetition: due cards first, "learned" after three boxes
-- **Quiz**: multiple choice, alternating word → meaning and meaning → word
-- **Match**: pair Japanese tiles with meanings, timed, with a miss count
+- **Flash cards, scheduled like Anki** (SM-2): furigana / kanji / romaji front, full entry on the back
+- **Again / Hard / Good / Easy**, each button showing when the card comes back (`1m`, `10m`, `1d`, `4d`)
+- Learning steps of 1 and 10 minutes within the sitting, then day intervals that grow with each card's ease
+- A forgotten card is relearned with its interval halved, not reset
+- Daily queue: reviews due today (most overdue first), learning cards, and a ration of new cards (default 20/day, set in Settings, shared across decks)
+- New / Learning / Review counts, Undo, and "study 10 more new cards" when you're done
+- "Learned" means a card that has reached a week-long interval
+- **Quiz**: multiple choice, alternating word → meaning and meaning → word (practice; doesn't change the schedule)
+- **Match**: pair Japanese tiles with meanings, timed, with a miss count (practice)
 - Study all words, or one manga's
 
 **Other**
@@ -61,7 +66,7 @@ release. Or download the APK from
 | --- | --- |
 | 🏠 **Library** | Cover carousel, chapter progress, how many of the focused manga's words you've learned. Tap a cover for its chapters; the last tile imports a new manga. |
 | 💬 **Words** | One deck per manga. Each deck lists saved words (ENGLISH · ROMAJI · FURIGANA · KANJI), a dictionary search to add more, and a *Bubbles* view of every translation you've written. |
-| 🗃 **Study** | Flash cards (👍 / 👎, Leitner-scheduled), a multiple-choice quiz, and a pair-matching game, over all words or one manga's. |
+| 🗃 **Study** | Anki-style flash cards (Again / Hard / Good / Easy, SM-2), plus a multiple-choice quiz and a pair-matching game for practice, over all words or one manga's. |
 
 ### Importing
 
@@ -116,7 +121,7 @@ storage: `library.json`, written atomically.
 
 ```
 lib/core/       pure Dart, fully unit-tested: kana→romaji, segmenter, page
-                geometry, OCR text ordering, Leitner SRS, quiz/match games,
+                geometry, OCR text ordering, SM-2 scheduler + study session, quiz/match games,
                 natural sort + archive grouping
 lib/services/   thin plugin wrappers: store, importer, ocr, jisho, speech
 lib/screens/    UI

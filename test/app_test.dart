@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:manabee/core/srs.dart';
 import 'package:manabee/main.dart';
 import 'package:manabee/models.dart';
 import 'package:manabee/screens/flashcards_screen.dart';
@@ -69,25 +70,40 @@ void main() {
     expect(find.text('Chapter 1 of 1 Completed'), findsOneWidget);
   });
 
-  testWidgets('flash card flips and a thumbs up schedules it', (tester) async {
+  testWidgets('flash card: show answer, Good, comes back in 10m, Undo', (
+    tester,
+  ) async {
     final lib = await pump(tester, (lib) => lib.saveWord('m', wakai()));
     final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
     nav.push(MaterialPageRoute(builder: (_) => const FlashcardsScreen()));
     await tester.pumpAndSettle();
 
     expect(find.text('wakai'), findsOneWidget);
-    expect(find.text('1/1'), findsOneWidget);
+    expect(find.text('NEW'), findsOneWidget);
 
-    await tester.tap(find.text('若い'));
+    await tester.tap(find.text('Show answer'));
     await tester.pumpAndSettle();
     expect(find.text('jlpt n5'), findsOneWidget);
-    expect(find.textContaining('young; youthful'), findsOneWidget);
+    // The interval each button would give a brand-new card.
+    expect(find.text('1m'), findsNWidgets(2)); // Again, Hard
+    expect(find.text('10m'), findsOneWidget); // Good
+    expect(find.text('4d'), findsOneWidget); // Easy
 
-    await tester.tap(find.text('👍'));
+    await tester.tap(find.text('Good'));
     await tester.pumpAndSettle();
-    expect(lib.words.single.review.box, 1);
-    expect(find.text('Deck done'), findsOneWidget);
-    // Flush the debounced save so no timer outlives the test.
+    expect(lib.words.single.review.isLearning, isTrue);
+    // Nothing else to study, so the learning card is shown again early.
+    expect(find.text('wakai'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(lib.words.single.review.isNew, isTrue);
+
+    await tester.tap(find.text('Easy'));
+    await tester.pumpAndSettle();
+    expect(lib.words.single.review.intervalDays, kEasyIntervalDays);
+    expect(find.text('All caught up'), findsOneWidget);
+
     await lib.save();
   });
 }

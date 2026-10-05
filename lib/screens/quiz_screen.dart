@@ -1,6 +1,5 @@
 /// Multiple choice: alternately "what does this mean?" and "which word is
-/// this?". A right answer counts as a 👍 for the card's schedule and a
-/// wrong one as 👎 — the quiz is a review like any other.
+/// this?". Practice only — it doesn't touch the flash-card schedule.
 library;
 
 import 'dart:math';
@@ -52,9 +51,9 @@ class _QuizScreenState extends State<QuizScreen> {
       if (right) _score++;
     });
     right ? HapticFeedback.lightImpact() : HapticFeedback.heavyImpact();
-    final lib = AppScope.read(context);
-    final w = lib.words.where((w) => w.id == q.card.id).firstOrNull;
-    if (w != null) lib.answer(w, knewIt: right);
+    // Practice only: the schedule belongs to flash cards, as in Anki. A
+    // multiple-choice guess is recognition, not recall, and letting it
+    // push cards out would have them come back later than they should.
   }
 
   @override
