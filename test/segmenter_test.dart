@@ -1,6 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manabee/core/segmenter.dart';
 
+/// What jisho.org knows exactly, from probing it: いってきます and
+/// すいません are words, ひすっかり and ひー are not.
+const _dictionary = {'いってきます', 'すいません', 'すっかり', '忘れて', 'すごい'};
+Future<bool> known(String q) async => _dictionary.contains(q);
+
 List<String> texts(String s) => segment(s).map((e) => e.text).toList();
 
 void main() {
@@ -88,5 +93,42 @@ void main() {
     expect(lookupCandidates('いってきまーす'), ['いってきます']);
     expect(lookupCandidates('ばかっ！'), ['ばか']);
     expect(lookupCandidates('ラーメン'), ['ラーメン']);
+  });
+
+  group('inner ー settled by the dictionary', () {
+    test('ひーすっかり: the joined form is no word, so it splits', () async {
+      expect(await resolveStretches('ひーすっかり', known), ['すっかり']);
+    });
+
+    test('いってきまーす / すいませーん stay one word', () async {
+      expect(await resolveStretches('いってきまーす', known), ['いってきます']);
+      expect(await resolveStretches('すいませーん', known), ['すいません']);
+    });
+
+    test('a lone drawn-out kana is an exclamation, not a lookup', () async {
+      var asked = false;
+      final r = await resolveStretches('ひー', (q) async => asked = true);
+      expect(r, isEmpty);
+      expect(asked, isFalse);
+      expect(await resolvedCandidates('あー！', known), isEmpty);
+    });
+
+    test('a ー at the end of a longer word is just dropped', () async {
+      expect(await resolveStretches('すごーい', known), ['すごい']);
+      expect(await resolveStretches('はやくー', known), ['はやく']);
+    });
+
+    test('a split never leaves a one-kana chip behind', () async {
+      expect(await resolveStretches('ぶーい', known), isEmpty);
+    });
+
+    test('a longer word before the ー is kept as its own lookup', () async {
+      expect(await resolveStretches('すごーすっかり', known), ['すご', 'すっかり']);
+    });
+
+    test('the nichijou bubble gives すっかり and 忘れて', () async {
+      expect(await resolvedCandidates('ひーすっかり忘れて', known), ['すっかり', '忘れて']);
+      expect(await resolvedCandidates('いってきまーす', known), ['いってきます']);
+    });
   });
 }

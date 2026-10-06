@@ -188,3 +188,62 @@ List<String> lookupCandidates(String text) {
   }
   return out;
 }
+
+/// Index of the first stretch ー inside a hiragana word — after hiragana,
+/// with more text after it — or -1. A ー at the very end (ひー) is a plain
+/// stretch and needs no decision.
+int _innerStretch(List<int> runes) {
+  for (var i = 1; i < runes.length - 1; i++) {
+    if (runes[i] == 0x30FC && isHiragana(runes[i - 1])) return i;
+  }
+  return -1;
+}
+
+/// The lookups [text] stands for, with any inner ー settled by the
+/// dictionary.
+///
+/// A ー inside a hiragana run is either stretching within one word
+/// (いってきまーす = いってきます) or the end of a drawn-out word followed
+/// by the next (ひーすっかり = ひー + すっかり). The script can't tell those
+/// apart; the dictionary can: if the run with its ー removed is a word
+/// [isWord] knows, it's one word. Otherwise it splits at the ー, and a
+/// one-kana exclamation before it (ひー, あー) is dropped — the dictionary
+/// has nothing for those but a misleading near-match.
+Future<List<String>> resolveStretches(
+  String text,
+  Future<bool> Function(String) isWord,
+) async {
+  final runes = text.runes.toList();
+  final i = _innerStretch(runes);
+  final joined = normalizeForLookup(text);
+  // One drawn-out kana (ひー, あー) is an exclamation; its one-kana
+  // "lookup" only ever finds 火 or 亜.
+  if (joined.runes.length == 1 && text.runes.length > 1) return const [];
+  if (i < 0 || await isWord(joined)) return [if (joined.isNotEmpty) joined];
+  final left = String.fromCharCodes(runes.sublist(0, i));
+  final right = String.fromCharCodes(runes.sublist(i + 1));
+  return [
+    if (left.runes.length >= 2) normalizeForLookup(left),
+    // A lone kana left over after the split is a particle or a fragment,
+    // never worth a lookup of its own.
+    for (final q in await resolveStretches(right, isWord))
+      if (!(q.runes.length == 1 && isKana(q.runes.first))) q,
+  ];
+}
+
+/// [lookupCandidates], with inner ー settled by the dictionary (see
+/// [resolveStretches]).
+Future<List<String>> resolvedCandidates(
+  String text,
+  Future<bool> Function(String) isWord,
+) async {
+  final seen = <String>{};
+  final out = <String>[];
+  for (final s in segment(text)) {
+    if (!s.lookupWorthy) continue;
+    for (final q in await resolveStretches(s.text, isWord)) {
+      if (q.isNotEmpty && seen.add(q)) out.add(q);
+    }
+  }
+  return out;
+}

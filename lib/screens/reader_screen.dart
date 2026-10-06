@@ -139,9 +139,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   // ---- Lookup ----
 
+  /// Whether the dictionary has [q] as a word in its own right, not just
+  /// a near match. Offline, assume yes: keeping a stretched word whole is
+  /// the safer guess.
+  Future<bool> _isWord(String q) async {
+    try {
+      final hira = katakanaToHiragana(q);
+      final results = await AppScope.jishoOf(context).lookup(q);
+      return results.any(
+        (e) => e.word == q || e.reading == q || e.reading == hira,
+      );
+    } on LookupException {
+      return true;
+    }
+  }
+
+  /// Word chips per bubble text, once the dictionary has settled any
+  /// inner ー (core/segmenter.dart resolveStretches).
+  final Map<String, List<String>> _resolved = {};
+
+  List<String> _candidatesFor(String source) {
+    final ready = _resolved[source];
+    if (ready != null) return ready;
+    _resolved[source] = lookupCandidates(source);
+    resolvedCandidates(source, _isWord).then((list) {
+      if (mounted) setState(() => _resolved[source] = list);
+    });
+    return _resolved[source]!;
+  }
+
   Future<void> _lookup(String q) async {
-    // Looked up the way the dictionary knows it: きまーす as きます.
-    final query = normalizeForLookup(q);
+    // Looked up the way the dictionary knows it: きまーす as きます, and
+    // ひーすっかり as すっかり (ひー is an exclamation, not a word).
+    final pieces = await resolveStretches(q.trim(), _isWord);
+    if (!mounted) return;
+    final query = pieces.firstOrNull ?? normalizeForLookup(q);
     if (query.isEmpty) return;
     _query.text = query;
     setState(() {
@@ -189,8 +221,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _merging = false;
     });
     if (lookupFirst) {
-      final first = lookupCandidates(b.source).firstOrNull;
-      if (first != null) _lookup(first);
+      resolvedCandidates(b.source, _isWord).then((list) {
+        if (!mounted) return;
+        setState(() => _resolved[b.source] = list);
+        if (list.isNotEmpty) _lookup(list.first);
+      });
     }
     _openSheet();
   }
@@ -811,7 +846,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _contextCard(Manga m, Bubble b) {
     final lib = AppScope.library(context);
     final n = lib.bubbleNumber(m, b);
-    final candidates = lookupCandidates(b.source);
+    final candidates = _candidatesFor(b.source);
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 6, 12),
       decoration: BoxDecoration(
