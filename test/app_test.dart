@@ -102,6 +102,18 @@ void main() {
     expect(find.text('wakai'), findsNothing);
     expect(find.text('young; youthful'), findsNothing);
     expect(find.text('0 / 1'), findsOneWidget);
+    // The speaker sits beside Show answer, not up in the app bar.
+    final say = tester.getCenter(find.byTooltip('Say it'));
+    final show = tester.getCenter(find.text('Show answer'));
+    expect((say.dy - show.dy).abs(), lessThan(4));
+    expect(say.dx, greaterThan(show.dx));
+    expect(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byTooltip('Say it'),
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Show answer'));
     await tester.pumpAndSettle();

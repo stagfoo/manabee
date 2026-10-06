@@ -121,12 +121,6 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
             onPressed: _session.canUndo ? _undo : null,
             icon: const Icon(Icons.undo_rounded),
           ),
-          if (word != null)
-            IconButton(
-              tooltip: 'Say it',
-              icon: const Icon(Icons.volume_up_outlined),
-              onPressed: () => _say(context, word.entry),
-            ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
@@ -170,10 +164,20 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                                 now: now,
                                 onGrade: (g) => _grade(word.id, g),
                               )
-                            : _BigButton(
-                                label: 'Show answer',
-                                onPressed: () =>
-                                    setState(() => _revealed = true),
+                            // Audio beside the thumb rather than up in the
+                            // top bar: hearing the word is part of answering.
+                            : Row(
+                                children: [
+                                  Expanded(
+                                    child: _BigButton(
+                                      label: 'Show answer',
+                                      onPressed: () =>
+                                          setState(() => _revealed = true),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _SayButton(entry: word.entry),
+                                ],
                               ),
                       ],
                     ),
@@ -281,7 +285,17 @@ class _Face extends StatelessWidget {
           const Divider(color: C.border, thickness: 1, height: 24),
           // The reading is only worth showing when it differs from the
           // written form; a kana word already is its reading.
-          if (e.hasKanji) Center(child: Text(e.reading, style: Jp.reading)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (e.hasKanji) Text(e.reading, style: Jp.reading),
+              IconButton(
+                tooltip: 'Say it',
+                icon: const Icon(Icons.volume_up_outlined, color: C.textDim),
+                onPressed: () => _say(context, e),
+              ),
+            ],
+          ),
           Center(
             child: Text(
               e.romaji,
@@ -665,4 +679,28 @@ class _DoneMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The square speaker beside Show answer — the 10 of a 90/10 row, as tall
+/// as the button so the two read as one control.
+class _SayButton extends StatelessWidget {
+  const _SayButton({required this.entry});
+
+  final Entry entry;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 60,
+    height: 60,
+    child: IconButton.outlined(
+      tooltip: 'Say it',
+      style: IconButton.styleFrom(
+        backgroundColor: C.surface,
+        side: const BorderSide(color: C.ghostBorder, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      icon: const Icon(Icons.volume_up_outlined, color: C.text),
+      onPressed: () => _say(context, entry),
+    ),
+  );
 }
