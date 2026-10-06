@@ -6,6 +6,7 @@ import 'package:manabee/models.dart';
 import 'package:manabee/screens/flashcards_screen.dart';
 import 'package:manabee/services/jisho.dart';
 import 'package:manabee/services/store.dart';
+import 'package:manabee/widgets/confetti.dart';
 
 Future<Library> pump(
   WidgetTester tester, [
@@ -128,6 +129,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(lib.words.single.review.intervalDays, kEasyIntervalDays);
     expect(find.text('1 reviewed'), findsOneWidget);
+    expect(find.byType(Confetti), findsOneWidget);
     expect(find.textContaining('Congratulations'), findsOneWidget);
 
     await lib.save();

@@ -175,4 +175,32 @@ void main() {
     lib.dispose();
     again.dispose();
   });
+
+  group('a word only keeps a sentence it is in', () {
+    final tsuku = entry('着く', 'つく', 'to arrive');
+    final tsukuru = entry('作る', 'つくる', 'to make');
+    const sentence = '朝食は自分で作って下さい!';
+
+    test('findInSentence matches plain and conjugated forms', () {
+      expect(findInSentence(tsuku, sentence), isNull);
+      expect(findInSentence(tsukuru, sentence), (6, 7)); // 作 of 作って
+      expect(findInSentence(entry('自分', 'じぶん', 'self'), sentence), (3, 5));
+      expect(
+        findInSentence(entry('いってきます', 'いってきます', ''), 'いってきまーす'),
+        isNotNull,
+      );
+      expect(findInSentence(tsuku, ''), isNull);
+    });
+
+    test('saving with another bubble selected stores no sentence', () {
+      final lib = Library(MemoryStorage());
+      lib.saveWord('m', tsuku, context: sentence, bubbleId: 'b1');
+      lib.saveWord('m', tsukuru, context: sentence, bubbleId: 'b1');
+      expect(lib.words[0].context, '');
+      expect(lib.words[0].bubbleId, isNull);
+      expect(lib.words[1].context, sentence);
+      expect(lib.words[1].bubbleId, 'b1');
+      lib.dispose();
+    });
+  });
 }

@@ -126,13 +126,89 @@ class Bubble {
   /// Folds [other] into this bubble: its Japanese and translation are
   /// appended, and the region grows to cover both. For a balloon OCR read
   /// as two blocks, or one read in two drags. The caller removes [other].
-  void mergeFrom(Bubble other) {
-    source = joinText(source, other.source);
-    translation = joinText(translation, other.translation);
+  ///
+  /// Text is joined in reading order — whichever bubble sits first on the
+  /// page comes first, not whichever was tapped first.
+  void mergeFrom(Bubble other, {bool rightToLeft = true}) {
+    refile();
+    other.refile();
+    final otherFirst = readsBefore(other.area, area, rightToLeft: rightToLeft);
+    source = otherFirst
+        ? joinText(other.source, source)
+        : joinText(source, other.source);
+    translation = otherFirst
+        ? joinText(other.translation, translation)
+        : joinText(translation, other.translation);
     final a = region;
     final b = other.region;
     region = a == null ? b : (b == null ? a : a.expandToInclude(b));
   }
+
+  /// Where the bubble is: its OCR region, or just its pill for one placed
+  /// by hand.
+  Rect get area =>
+      region ?? Rect.fromCenter(center: position, width: 0, height: 0);
+
+  /// Moves Japanese typed into the translation field over to the Japanese
+  /// field, when that's empty. Returns whether it moved anything.
+  bool refile() {
+    if (source.isEmpty && looksJapanese(translation)) {
+      source = translation;
+      translation = '';
+      return true;
+    }
+    return false;
+  }
+}
+
+/// Japanese and nothing that reads as English: kana or kanji, no Latin
+/// letters.
+bool looksJapanese(String s) =>
+    containsJapanese(s) && !RegExp(r'[A-Za-z]').hasMatch(s);
+
+/// Whether [a] is read before [b] on a manga page. Side by side, the
+/// right one comes first (left, for left-to-right books); stacked — when
+/// they overlap across most of the narrower one's width — the top one.
+bool readsBefore(Rect a, Rect b, {bool rightToLeft = true}) {
+  final narrower = a.width < b.width ? a.width : b.width;
+  final overlap =
+      (a.right < b.right ? a.right : b.right) -
+      (a.left > b.left ? a.left : b.left);
+  final stacked = narrower > 0
+      ? overlap > narrower * 0.5
+      : (a.center.dx - b.center.dx).abs() < 0.03;
+  if (stacked) return a.center.dy < b.center.dy;
+  return rightToLeft ? a.center.dx > b.center.dx : a.center.dx < b.center.dx;
+}
+
+/// Where [e] appears in [sentence], as a start/end, or null if it doesn't.
+/// Conjugated forms count: a word with kanji matches on its kanji stem
+/// (作る finds 作って), a kana word on all but its last kana (たべる finds
+/// たべた).
+(int, int)? findInSentence(Entry e, String sentence) {
+  if (sentence.isEmpty) return null;
+  final tries = <String>[e.word, e.reading];
+  if (containsKanji(e.word)) {
+    final runes = e.word.runes.toList();
+    var end = runes.length;
+    while (end > 0 && !isKanji(runes[end - 1])) {
+      end--;
+    }
+    tries.add(String.fromCharCodes(runes.sublist(0, end)));
+  } else {
+    for (final kana in [e.word, e.reading]) {
+      final runes = kana.runes.toList();
+      if (runes.length >= 3) {
+        tries.add(String.fromCharCodes(runes.sublist(0, runes.length - 1)));
+      }
+    }
+  }
+  for (final t in tries) {
+    if (t.isEmpty) continue;
+    final i = sentence.indexOf(t);
+    if (i >= 0) return (i, i + t.length);
+  }
+  return null;
 }
 
 /// [a] and [b] joined the way the script wants: Japanese runs straight on

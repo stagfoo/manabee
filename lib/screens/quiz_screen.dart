@@ -11,6 +11,7 @@ import '../core/games.dart';
 import '../core/kana.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/confetti.dart';
 import 'study_screen.dart';
 
 class QuizScreen extends StatefulWidget {
@@ -107,13 +108,22 @@ class _QuizScreenState extends State<QuizScreen> {
               )
             else if (done)
               Expanded(
-                child: EmptyState(
-                  emoji: _score == _questions.length ? '🏆' : '🎉',
-                  title: '$_score of ${_questions.length} right',
-                  action: LimeButton(
-                    label: 'Play again',
-                    onPressed: () => setState(_deal),
-                  ),
+                child: Stack(
+                  children: [
+                    EmptyState(
+                      emoji: _score == _questions.length ? '🏆' : '🎉',
+                      title: '$_score of ${_questions.length} right',
+                      action: LimeButton(
+                        label: 'Play again',
+                        onPressed: () => setState(_deal),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Confetti(
+                        pieces: _score == _questions.length ? 160 : 80,
+                      ),
+                    ),
+                  ],
                 ),
               )
             else

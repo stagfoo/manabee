@@ -87,4 +87,76 @@ void main() {
       expect(a.source, '朝食');
     });
   });
+
+  group('merging follows the page, not the tap order', () {
+    // nichijou p1: 「ひーすっかり」 is the right column, 「忘れてたー」 the left.
+    Bubble at(String source, Rect region) => Bubble(
+      id: source,
+      chapterId: 'c',
+      page: 0,
+      position: region.center,
+      source: source,
+      region: region,
+    );
+    final right = at('ひーすっかり', const Rect.fromLTRB(0.6, 0.2, 0.7, 0.5));
+    final left = at('忘れてたー', const Rect.fromLTRB(0.5, 0.2, 0.6, 0.45));
+
+    test('right column first, whichever is merged into which', () {
+      final a = at(right.source, right.region!)
+        ..mergeFrom(at(left.source, left.region!));
+      final b = at(left.source, left.region!)
+        ..mergeFrom(at(right.source, right.region!));
+      expect(a.source, 'ひーすっかり忘れてたー');
+      expect(b.source, 'ひーすっかり忘れてたー');
+    });
+
+    test('left-to-right books read left first', () {
+      final a = at(right.source, right.region!)
+        ..mergeFrom(at(left.source, left.region!), rightToLeft: false);
+      expect(a.source, '忘れてたーひーすっかり');
+    });
+
+    test('stacked bubbles read top first', () {
+      final top = at('上', const Rect.fromLTRB(0.4, 0.1, 0.6, 0.2));
+      final bottom = at('下', const Rect.fromLTRB(0.42, 0.3, 0.58, 0.4));
+      bottom.mergeFrom(top);
+      expect(bottom.source, '上下');
+    });
+  });
+
+  group('Japanese typed into the translation field', () {
+    test('moves to the Japanese field when that is empty', () {
+      final b = bubble(translation: 'わすれてたー');
+      expect(b.refile(), isTrue);
+      expect(b.source, 'わすれてたー');
+      expect(b.translation, '');
+    });
+
+    test('a real translation, or a filled Japanese field, stays put', () {
+      expect(bubble(translation: 'I forgot!').refile(), isFalse);
+      expect(bubble(translation: 'OK です').refile(), isFalse);
+      expect(bubble(source: '朝', translation: 'わすれた').refile(), isFalse);
+    });
+
+    test('merging refiles first — the bug from nichijou p1', () {
+      final ocr = Bubble(
+        id: 'ocr',
+        chapterId: 'c',
+        page: 0,
+        position: const Offset(0.65, 0.5),
+        region: const Rect.fromLTRB(0.6, 0.2, 0.7, 0.5),
+        source: 'ひーすっかり',
+      );
+      final typed = Bubble(
+        id: 'typed',
+        chapterId: 'c',
+        page: 0,
+        position: const Offset(0.55, 0.3),
+        translation: '忘れてたー',
+      );
+      ocr.mergeFrom(typed);
+      expect(ocr.source, 'ひーすっかり忘れてたー');
+      expect(ocr.translation, '');
+    });
+  });
 }

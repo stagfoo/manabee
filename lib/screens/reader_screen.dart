@@ -377,7 +377,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
     setState(() => _merging = false);
     if (b.id == active.id) return;
-    active.mergeFrom(b);
+    active.mergeFrom(
+      b,
+      rightToLeft: AppScope.read(context).settings.rightToLeft,
+    );
     final lib = AppScope.read(context);
     lib.removeBubble(m, b);
     HapticFeedback.lightImpact();
@@ -1494,6 +1497,9 @@ class _BubbleEditorState extends State<_BubbleEditor> {
     widget.bubble
       ..source = _source.text.trim()
       ..translation = _translation.text.trim();
+    if (widget.bubble.refile()) {
+      toast(context, 'That was Japanese — moved it to the Japanese field.');
+    }
     Navigator.pop(context, _EditResult.saved);
   }
 
@@ -1531,7 +1537,9 @@ class _BubbleEditorState extends State<_BubbleEditor> {
             const SizedBox(height: 6),
             TextField(
               controller: _source,
-              autofocus: widget.focusJapanese,
+              // Japanese first: it's what the bubble is, and the field
+              // people fill in first.
+              autofocus: widget.focusJapanese || widget.isNew,
               minLines: 1,
               maxLines: 4,
               style: T.jp.copyWith(fontSize: 18),
@@ -1544,7 +1552,6 @@ class _BubbleEditorState extends State<_BubbleEditor> {
             const SizedBox(height: 6),
             TextField(
               controller: _translation,
-              autofocus: !widget.focusJapanese && widget.isNew,
               minLines: 1,
               maxLines: 4,
               style: T.bodyLg,

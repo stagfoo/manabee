@@ -20,6 +20,7 @@ import '../services/speech.dart';
 import '../services/store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/confetti.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   const FlashcardsScreen({super.key, this.mangaId});
@@ -205,7 +206,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         nextDue = d;
       }
     }
-    return _DoneMessage(
+    final message = _DoneMessage(
       icon: Icons.check_circle_outline_rounded,
       title: deck.isEmpty
           ? 'No cards yet'
@@ -228,6 +229,15 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
           const SizedBox(height: 12),
         ],
         _BigButton(label: 'Back', onPressed: () => Navigator.maybePop(context)),
+      ],
+    );
+    // Finishing a day's cards is the habit worth celebrating — not opening
+    // the screen with nothing due.
+    if (_answered == 0) return message;
+    return Stack(
+      children: [
+        message,
+        const Positioned.fill(child: Confetti()),
       ],
     );
   }
@@ -315,9 +325,11 @@ class _Face extends StatelessWidget {
             const SizedBox(height: 16),
             _Senses(e),
           ],
-          if (word.context.isNotEmpty) ...[
+          // Only when the word is really in it: words saved before 1.0.6
+          // could carry whichever bubble happened to be selected.
+          if (findInSentence(e, word.context) case final match?) ...[
             const SizedBox(height: 12),
-            _ContextCard(text: word.context, source: mangaTitle),
+            _ContextCard(text: word.context, match: match, source: mangaTitle),
           ],
         ],
       ],
@@ -413,9 +425,12 @@ class _Senses extends StatelessWidget {
 /// The bubble the word came from — what jlptbenkyo shows as an example
 /// sentence, except this one is from your own book.
 class _ContextCard extends StatelessWidget {
-  const _ContextCard({required this.text, this.source});
+  const _ContextCard({required this.text, required this.match, this.source});
 
   final String text;
+
+  /// Where the word sits in [text], highlighted.
+  final (int, int) match;
   final String? source;
 
   @override
@@ -439,7 +454,22 @@ class _ContextCard extends StatelessWidget {
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: Text(text, style: Jp.sentence),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: text.substring(0, match.$1)),
+                    TextSpan(
+                      text: text.substring(match.$1, match.$2),
+                      style: const TextStyle(
+                        color: C.lime,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(text: text.substring(match.$2)),
+                  ],
+                ),
+                style: Jp.sentence,
+              ),
             ),
             Align(
               alignment: Alignment.centerRight,

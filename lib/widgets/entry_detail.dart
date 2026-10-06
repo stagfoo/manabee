@@ -77,7 +77,8 @@ class EntryDetail extends StatelessWidget {
             ),
           ),
         ],
-        if (context_.isNotEmpty) ...[
+        // Only a sentence the word is really in (see findInSentence).
+        if (findInSentence(entry, context_) != null) ...[
           const SizedBox(height: 4),
           Text('FROM THE PAGE', style: T.monoSm),
           const SizedBox(height: 4),

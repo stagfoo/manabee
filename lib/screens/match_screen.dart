@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import '../core/games.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/confetti.dart';
 import 'study_screen.dart';
 
 class MatchScreen extends StatefulWidget {
@@ -125,16 +126,23 @@ class _MatchScreenState extends State<MatchScreen> {
               )
             else if (_game.finished)
               Expanded(
-                child: EmptyState(
-                  emoji: _game.mistakes == 0 ? '🏆' : '🎉',
-                  title: 'Cleared in ${secs}s',
-                  body: _game.mistakes == 0
-                      ? 'Not a single miss.'
-                      : '${_game.mistakes} misses.',
-                  action: LimeButton(
-                    label: 'Play again',
-                    onPressed: () => setState(_deal),
-                  ),
+                child: Stack(
+                  children: [
+                    EmptyState(
+                      emoji: _game.mistakes == 0 ? '🏆' : '🎉',
+                      title: 'Cleared in ${secs}s',
+                      body: _game.mistakes == 0
+                          ? 'Not a single miss.'
+                          : '${_game.mistakes} misses.',
+                      action: LimeButton(
+                        label: 'Play again',
+                        onPressed: () => setState(_deal),
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Confetti(pieces: _game.mistakes == 0 ? 160 : 80),
+                    ),
+                  ],
                 ),
               )
             else

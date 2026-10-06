@@ -194,13 +194,17 @@ class Library extends ChangeNotifier {
   }) {
     final id = Word.idFor(mangaId, e);
     if (words.any((w) => w.id == id)) return false;
+    // Only a sentence the word is actually in. Looking a word up while a
+    // different bubble is selected would otherwise file that bubble as the
+    // word's example.
+    final inSentence = findInSentence(e, context) != null;
     words.add(
       Word(
         id: id,
         mangaId: mangaId,
         entry: e,
-        context: context,
-        bubbleId: bubbleId,
+        context: inSentence ? context : '',
+        bubbleId: inSentence ? bubbleId : null,
       ),
     );
     changed();

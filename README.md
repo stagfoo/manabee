@@ -28,7 +28,8 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Bubbles stay on their balloon at any zoom and screen size
 - **Edit a bubble**: one sheet for its Japanese and your translation (pencil, or tap its text)
 - **Fix what OCR missed**: look the piece up, then "Add「食」to bubble" appends it
-- **Merge bubbles**: tap merge, then tap another bubble; text and regions combine (朝 + 食 → 朝食)
+- **Merge bubbles**: tap merge, then tap another bubble; text and regions combine in reading order (right column before left, top before bottom), whichever you tap first
+- Japanese typed into the translation field is moved to the Japanese field
 - Chapter-complete page with a jump to the next chapter
 
 **Words**
@@ -47,6 +48,8 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Review screen laid out like jlptbenkyo / Anki: the word big under its JLPT level, the answer added under a rule (reading, meanings, all senses, the bubble it came from), red / orange / green / blue grade buttons, Anki's `new + learning + review` counts
 - Study tab: a "Due today" card with the counts and a Study button, words-learned progress, practice games below
 - "Learned" means a card that has reached a week-long interval
+- A word keeps its sentence only if it actually appears in it (conjugations count), with the word highlighted
+- Confetti for finishing the day's cards, a quiz or a match board 🎉
 - **Quiz**: multiple choice, alternating word → meaning and meaning → word (practice; doesn't change the schedule)
 - **Match**: pair Japanese tiles with meanings, timed, with a miss count (practice)
 - Study all words, or one manga's
