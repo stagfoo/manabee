@@ -2,7 +2,7 @@ name: manabee
 description: "manabee — read Japanese manga, OCR the speech bubbles, translate them yourself, and learn the words with flash cards and games."
 publish_to: 'none'
 
-version: 1.0.6+7
+version: 1.0.7+8
 
 environment:
   sdk: ^3.13.0
