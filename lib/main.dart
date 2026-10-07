@@ -19,6 +19,12 @@ Future<void> main() async {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+  // Unpack the offline dictionary now, at launch, alongside everything
+  // else — not on the first lookup. Only the first launch after an update
+  // that changes the dictionary does real work (copying ~44 MB out of the
+  // APK); every other launch it's a version check. Not awaited: the shelf
+  // shows straight away, and a lookup made before it's done waits for it.
+  LocalDictionary.open().ignore();
   final docs = await getApplicationDocumentsDirectory();
   final library = Library(FileStorage(docs.path));
   await library.load();

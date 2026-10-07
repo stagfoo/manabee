@@ -72,7 +72,13 @@ class LocalDictionary implements Dictionary {
 
   static Future<LocalDictionary>? _opening;
 
-  static Future<LocalDictionary> open() => _opening ??= _open();
+  /// Shared: called at launch (main.dart) and by the first lookup, it
+  /// unpacks once. A failure isn't kept — the next lookup tries again.
+  static Future<LocalDictionary> open() =>
+      _opening ??= _open().catchError((Object e) {
+        _opening = null;
+        throw e;
+      });
 
   static Future<LocalDictionary> _open() async {
     final dir = await getApplicationSupportDirectory();
