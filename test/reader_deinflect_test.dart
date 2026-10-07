@@ -9,6 +9,7 @@ import 'package:manabee/models.dart';
 import 'package:manabee/screens/reader_screen.dart';
 import 'package:manabee/services/jisho.dart';
 import 'package:manabee/services/store.dart';
+import 'package:manabee/theme.dart';
 
 /// jisho.org as probed: no exact entry for あそべるよ or あそべる, 遊ぶ for
 /// あそぶ.
@@ -85,13 +86,14 @@ void main() {
 
     await tester.tap(find.text(sentence));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ActionChip, 'あそべるよ'));
+    // Tap the あ that starts あそべるよ (the second あ in the sentence).
+    await tester.tap(find.text('あ').at(1));
     await tester.runAsync(
       () => Future.delayed(const Duration(milliseconds: 200)),
     );
     await tester.pumpAndSettle();
 
-    expect(asked, containsAllInOrder(['あそべるよ', 'あそべる', 'あそぶ']));
+    expect(asked, containsAll(['あそべるよ', 'あそべる', 'あそぶ']));
     expect(find.text('遊ぶ'), findsWidgets);
     expect(find.textContaining('On the page'), findsOneWidget);
     expect(find.textContaining('potential'), findsOneWidget);
@@ -105,9 +107,79 @@ void main() {
     expect(w.entry.word, '遊ぶ');
     expect(w.context, sentence);
     expect(w.surface, 'あそべる');
+    // The word is highlighted where it stands: あそべる, not the よ.
+    final highlighted = tester
+        .widgetList<Text>(find.byType(Text))
+        .where((t) => t.style?.color == C.onLime && t.data?.length == 1)
+        .map((t) => t.data)
+        .join();
+    expect(highlighted, 'あそべる');
     expect(w.form, 'potential');
     expect(findInSentence(w.entry, w.context, surface: w.surface), isNotNull);
 
+    await lib.save();
+  });
+
+  testWidgets('long-press one character, tap another: looks up that span', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    const sentence = 'また あとで あそべるよ';
+    final lib = Library(MemoryStorage());
+    final m = Manga(
+      id: 'm',
+      title: 'nichijou',
+      chapters: [
+        Chapter(id: 'c', title: '01', pages: ['missing/1.jpg']),
+      ],
+    );
+    lib.mangas.add(m);
+    m.bubbles.add(
+      Bubble(
+        id: 'b',
+        chapterId: 'c',
+        page: 0,
+        position: const Offset(0.5, 0.3),
+        source: sentence,
+      ),
+    );
+    final asked = <String>[];
+    await tester.pumpWidget(ManabeeApp(library: lib, jisho: fakeJisho(asked)));
+    tester
+        .state<NavigatorState>(find.byType(Navigator).first)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => const ReaderScreen(mangaId: 'm', chapterIndex: 0),
+          ),
+        );
+    for (var i = 0; i < 10 && find.text(sentence).evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.runAsync(
+        () => Future.delayed(const Duration(milliseconds: 50)),
+      );
+    }
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text(sentence));
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('ま'));
+    await tester.pumpAndSettle();
+    expect(find.text('Now tap where the word ends.'), findsOneWidget);
+    await tester.tap(find.text('た'));
+    await tester.runAsync(
+      () => Future.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asked, contains('また'));
+    final highlighted = tester
+        .widgetList<Text>(find.byType(Text))
+        .where((t) => t.style?.color == C.onLime && t.data?.length == 1)
+        .map((t) => t.data)
+        .join();
+    expect(highlighted, 'また');
     await lib.save();
   });
 }

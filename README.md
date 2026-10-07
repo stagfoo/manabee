@@ -22,7 +22,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - **On-device Japanese OCR**: drag a box over a speech bubble to read it
 - **Scan page**: outline every text block on the page, tap one to read it
 - Vertical text put back into right-to-left column order; editable OCR text for fixing mistakes
-- Word chips split from each bubble, tap to look up
+- **Tap a word to look it up**: the bubble's text is tappable character by character; a tap finds the longest dictionary word starting there (as is, or with conjugation and a trailing particle undone) and highlights it. Long-press one character and tap another to look up any span by hand. No up-front word splitting, which fails on hiragana-only text
 - **Conjugations undone before lookup** (a small built-in deinflector, as in Yomichan): あそべるよ → strip よ → potential → 遊ぶ. Covers polite, past, te-form, negative, potential, passive, causative, volitional, たい, conditionals, ている/てる, ちゃう, adjectives, する/くる. jisho.org doesn't handle these itself
 - The form seen on the page is kept with the word ("On the page: あそべる · potential") and highlighted in its sentence
 - Dictionary entry in the sheet: kanji, reading, romaji, meanings, JLPT tag, audio
@@ -32,6 +32,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - **Fix what OCR missed**: look the piece up, then "Add「食」to bubble" appends it
 - **Merge bubbles**: tap merge, then tap another bubble; text and regions combine in reading order (right column before left, top before bottom), whichever you tap first
 - Japanese typed into the translation field is moved to the Japanese field
+- Editing the text is on the pencil icon
 - Chapter-complete page with a jump to the next chapter
 
 **Words**

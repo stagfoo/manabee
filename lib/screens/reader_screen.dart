@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 
 import '../core/deinflect.dart';
 import '../core/geometry.dart';
+import '../core/scan.dart';
 import '../core/kana.dart';
 import '../core/segmenter.dart';
 import '../models.dart';
@@ -163,18 +164,59 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String _surface = '';
   Deinflection? _form;
 
-  /// Word chips per bubble text, once the dictionary has settled any
-  /// inner ー (core/segmenter.dart resolveStretches).
-  final Map<String, List<String>> _resolved = {};
+  /// The highlighted word in a bubble — (bubble id, start, end) — and a
+  /// long-pressed start for picking a span by hand.
+  (String, int, int)? _span;
+  (String, int)? _anchor;
 
-  List<String> _candidatesFor(String source) {
-    final ready = _resolved[source];
-    if (ready != null) return ready;
-    _resolved[source] = lookupCandidates(source);
-    resolvedCandidates(source, _isWord).then((list) {
-      if (mounted) setState(() => _resolved[source] = list);
+  /// A tap on a bubble's character: the end of a hand-picked span if one
+  /// was started, otherwise "the word that starts here".
+  Future<void> _tapChar(Bubble b, int i) async {
+    final anchor = _anchor?.$1 == b.id ? _anchor!.$2 : null;
+    if (anchor != null) {
+      final start = i < anchor ? i : anchor;
+      final end = (i < anchor ? anchor : i) + 1;
+      setState(() {
+        _anchor = null;
+        _span = (b.id, start, end);
+      });
+      await _lookup(b.source.substring(start, end));
+      return;
+    }
+    await _scan(b, i);
+  }
+
+  /// Looks up the longest word starting at [i] (core/scan.dart).
+  Future<void> _scan(Bubble b, int i) async {
+    final jisho = AppScope.jishoOf(context);
+    setState(() {
+      _looking = true;
+      _lookupError = null;
+      _anchor = null;
     });
-    return _resolved[source]!;
+    ScanResult? r;
+    String? error;
+    try {
+      r = await scanWord(b.source, i, jisho.lookup);
+    } on LookupException catch (e) {
+      error = e.message;
+    }
+    if (!mounted) return;
+    setState(() {
+      _looking = false;
+      if (r == null) {
+        _lookupError = error ?? 'No word found starting at 「${b.source[i]}」.';
+        _span = null;
+        return;
+      }
+      _span = (b.id, r.start, r.end);
+      _surface = r.surfaceOf(b.source);
+      _query.text = _surface;
+      _results = r.entries;
+      _selected = 0;
+      _form = r.form;
+    });
+    _openSheet();
   }
 
   Future<void> _lookup(String q) async {
@@ -255,11 +297,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _merging = false;
     });
     if (lookupFirst) {
-      resolvedCandidates(b.source, _isWord).then((list) {
-        if (!mounted) return;
-        setState(() => _resolved[b.source] = list);
-        if (list.isNotEmpty) _lookup(list.first);
-      });
+      // The first word of a freshly read bubble.
+      final first = b.source.runes.toList().indexWhere(isJapanese);
+      if (first >= 0) _scan(b, first);
     }
     _openSheet();
   }
@@ -689,7 +729,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 _SearchField(
                   controller: _query,
                   jlpt: entry?.jlpt,
-                  onSubmit: _lookup,
+                  onSubmit: (q) {
+                    // Typed, not tapped: no span of the bubble is meant.
+                    setState(() => _span = null);
+                    _lookup(q);
+                  },
                   onFocus: () => _openSheet(0.88),
                 ),
                 const SizedBox(height: 16),
@@ -902,7 +946,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _contextCard(Manga m, Bubble b) {
     final lib = AppScope.library(context);
     final n = lib.bubbleNumber(m, b);
-    final candidates = _candidatesFor(b.source);
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 6, 12),
       decoration: BoxDecoration(
@@ -949,19 +992,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ),
             ],
           ),
-          InkWell(
-            onTap: () => _editBubble(m, b, focusJapanese: true),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8, bottom: 4),
-              child: Text(
-                b.source.isEmpty ? 'Tap to add the Japanese' : '「${b.source}」',
-                style: T.jp.copyWith(
-                  fontSize: 15,
-                  color: b.source.isEmpty ? C.inactive : C.text,
+          if (b.source.isEmpty)
+            InkWell(
+              onTap: () => _editBubble(m, b, focusJapanese: true),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 4),
+                child: Text(
+                  'Tap to add the Japanese',
+                  style: T.jp.copyWith(fontSize: 15, color: C.inactive),
                 ),
               ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(right: 8, bottom: 4),
+              child: _TappableText(
+                text: b.source,
+                span: _span?.$1 == b.id ? (_span!.$2, _span!.$3) : null,
+                anchor: _anchor?.$1 == b.id ? _anchor!.$2 : null,
+                onTap: (i) => _tapChar(b, i),
+                onLongPress: (i) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _anchor = (b.id, i));
+                },
+              ),
             ),
-          ),
           if (b.translation.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 8, bottom: 6),
@@ -970,31 +1025,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 style: T.bodyMd.copyWith(color: C.textDim),
               ),
             ),
-          if (candidates.isNotEmpty)
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final w in candidates)
-                  ActionChip(
-                    label: Text(
-                      w,
-                      style: T.jp.copyWith(fontSize: 14, height: 1.1),
-                    ),
-                    backgroundColor: Colors.black,
-                    side: BorderSide(
-                      color: _query.text == w ? C.lime : C.ghostBorder,
-                    ),
-                    shape: const StadiumBorder(),
-                    onPressed: () => _lookup(w),
-                  ),
-              ],
-            ),
           if (b.source.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'Tap the text to edit it, a chip to look it up. Missing a piece? Look it up and add it, or merge in another bubble.',
+                _anchor?.$1 == b.id
+                    ? 'Now tap where the word ends.'
+                    : 'Tap where a word starts to look it up. Long-press a '
+                          'character, then tap another, to pick any span. '
+                          'The pencil edits the text.',
                 style: T.bodyMd.copyWith(color: C.inactive, fontSize: 11),
               ),
             ),
@@ -1689,6 +1728,57 @@ class _BubbleEditorState extends State<_BubbleEditor> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A bubble's Japanese as tappable characters: tap where a word starts,
+/// long-press then tap to pick a span. The looked-up word is highlighted.
+class _TappableText extends StatelessWidget {
+  const _TappableText({
+    required this.text,
+    required this.onTap,
+    required this.onLongPress,
+    this.span,
+    this.anchor,
+  });
+
+  final String text;
+  final (int, int)? span;
+  final int? anchor;
+  final ValueChanged<int> onTap;
+  final ValueChanged<int> onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(children: [for (var i = 0; i < text.length; i++) _char(i)]);
+  }
+
+  Widget _char(int i) {
+    final c = text[i];
+    if (c == '\n') return const SizedBox(width: double.infinity);
+    final inSpan = span != null && i >= span!.$1 && i < span!.$2;
+    final isAnchor = anchor == i;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onTap(i),
+      onLongPress: () => onLongPress(i),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 3),
+        decoration: BoxDecoration(
+          color: inSpan ? C.lime : null,
+          border: isAnchor ? Border.all(color: C.lime, width: 1.5) : null,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          c,
+          style: T.jp.copyWith(
+            fontSize: 20,
+            height: 1.3,
+            color: inSpan ? C.onLime : C.text,
+          ),
         ),
       ),
     );
