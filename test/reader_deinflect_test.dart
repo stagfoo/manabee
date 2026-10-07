@@ -68,7 +68,9 @@ void main() {
       ),
     );
     final asked = <String>[];
-    await tester.pumpWidget(ManabeeApp(library: lib, jisho: fakeJisho(asked)));
+    await tester.pumpWidget(
+      ManabeeApp(library: lib, dictionary: fakeJisho(asked)),
+    );
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push(
@@ -146,7 +148,9 @@ void main() {
       ),
     );
     final asked = <String>[];
-    await tester.pumpWidget(ManabeeApp(library: lib, jisho: fakeJisho(asked)));
+    await tester.pumpWidget(
+      ManabeeApp(library: lib, dictionary: fakeJisho(asked)),
+    );
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push(

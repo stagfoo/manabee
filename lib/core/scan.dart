@@ -40,9 +40,53 @@ class ScanResult {
   String surfaceOf(String text) => text.substring(start, end);
 }
 
-/// Whether [e] is exactly [q], not just a near match.
-bool isExactEntry(Entry e, String q) =>
-    e.word == q || e.reading == q || e.reading == katakanaToHiragana(q);
+/// Whether [e] is exactly [q], not just a near match — allowing the same
+/// spellings of ー the dictionary tries (とーちゃん is とうちゃん).
+bool isExactEntry(Entry e, String q) {
+  for (final form in [q, ...spellingVariants(q)]) {
+    if (e.word == form ||
+        e.reading == form ||
+        e.reading == katakanaToHiragana(form)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Other spellings worth trying when [q] isn't in the dictionary as
+/// written: ー after hiragana as the vowel it stands for (とーちゃん →
+/// とうちゃん; え-row and お-row also as い / う, the usual long forms).
+List<String> spellingVariants(String q) {
+  final runes = q.runes.toList();
+  final at = <int>[
+    for (var i = 1; i < runes.length; i++)
+      if (runes[i] == 0x30FC && isHiragana(runes[i - 1])) i,
+  ];
+  if (at.isEmpty) return const [];
+  var variants = <List<int>>[runes];
+  for (final i in at) {
+    final vowels = _longVowels(runes[i - 1]);
+    variants = [
+      for (final v in variants)
+        for (final vowel in vowels)
+          [...v.sublist(0, i), vowel, ...v.sublist(i + 1)],
+    ];
+  }
+  return [for (final v in variants) String.fromCharCodes(v)];
+}
+
+List<int> _longVowels(int kana) {
+  final r = toRomaji(String.fromCharCode(kana));
+  if (r.isEmpty) return const [];
+  return switch (r[r.length - 1]) {
+    'a' => [0x3042],
+    'i' => [0x3044],
+    'u' => [0x3046],
+    'e' => [0x3044, 0x3048], // せんせい, ねえ
+    'o' => [0x3046, 0x304A], // とうちゃん, おおきい
+    _ => const [],
+  };
+}
 
 bool _wordChar(int c) => isJapanese(c) || c == 0x30FC || c == 0x3005;
 

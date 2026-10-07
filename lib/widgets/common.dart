@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../models.dart';
-import '../services/jisho.dart';
+import '../services/dictionary.dart';
 import '../services/store.dart';
 import '../theme.dart';
 
@@ -16,11 +16,11 @@ class AppScope extends InheritedNotifier<Library> {
   const AppScope({
     super.key,
     required Library library,
-    required this.jisho,
+    required this.dictionary,
     required super.child,
   }) : super(notifier: library);
 
-  final Jisho jisho;
+  final Dictionary dictionary;
 
   static AppScope _of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AppScope>()!;
@@ -32,8 +32,8 @@ class AppScope extends InheritedNotifier<Library> {
   static Library read(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AppScope>()!.notifier!;
 
-  static Jisho jishoOf(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<AppScope>()!.jisho;
+  static Dictionary dictionaryOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<AppScope>()!.dictionary;
 }
 
 class GridPainter extends CustomPainter {

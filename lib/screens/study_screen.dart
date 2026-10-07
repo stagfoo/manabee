@@ -11,6 +11,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'flashcards_screen.dart';
+import 'listen_screen.dart';
 import 'match_screen.dart';
 import 'quiz_screen.dart';
 
@@ -92,6 +93,17 @@ class _StudyScreenState extends State<StudyScreen> {
           const SizedBox(height: 20),
           Text('Practice', style: T.pill.copyWith(color: C.textDim)),
           const SizedBox(height: 8),
+          _Tile(
+            icon: Icons.headphones_rounded,
+            title: 'Listen',
+            subtitle: 'Audio playlist: Japanese, a pause, the meaning, a chime',
+            enabled: words.isNotEmpty,
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(
+                builder: (_) => ListenScreen(mangaId: _mangaId),
+              ),
+            ),
+          ),
           _Tile(
             icon: Icons.quiz_outlined,
             title: 'Quiz',

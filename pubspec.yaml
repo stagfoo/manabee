@@ -31,8 +31,18 @@ dependencies:
   # recognises far better than a whole page, where the art drowns the text.
   image: ^4.10.1
 
-  # Dictionary lookups against jisho.org.
+  # The offline dictionary (assets/dict/jmdict.db, built by
+  # tool/build_dictionary.py) is queried in place rather than loaded into
+  # Dart maps: 219k entries would cost far more heap than a few lookups.
+  sqflite: ^2.4.4
+
+  # Searching by English meaning, which the offline index doesn't cover,
+  # still goes to jisho.org.
   http: ^1.6.0
+
+  # The tone between items in Listen mode. Same audio stack as the sibling
+  # apps (jlptbenkyo, kidsdreamland).
+  audioplayers: ^6.8.1
 
   # Pronunciation, from the device's own Japanese voice.
   flutter_tts: ^4.2.5
@@ -43,8 +53,15 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
 
+  # Runs the real assets/dict/jmdict.db in tests, on the desktop.
+  sqflite_common_ffi: ^2.4.3
+
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/dict/
+    - assets/sounds/
 
   fonts:
     # Bundled rather than fetched with google_fonts: the reader works offline,

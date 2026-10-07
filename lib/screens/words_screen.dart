@@ -41,7 +41,7 @@ class _WordsScreenState extends State<WordsScreen> {
       _error = null;
     });
     try {
-      final r = await AppScope.jishoOf(context).lookup(q);
+      final r = await AppScope.dictionaryOf(context).lookup(q);
       if (mounted) {
         setState(() {
           _results = r;

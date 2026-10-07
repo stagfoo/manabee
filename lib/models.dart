@@ -437,6 +437,10 @@ class Settings {
     this.rightToLeft = true,
     this.speechRate = 0.45,
     this.newPerDay = 20,
+    this.listenThinkSeconds = 2.5,
+    this.listenSayMeaning = true,
+    this.listenTwice = false,
+    this.listenLoop = false,
   });
 
   /// Manga reads right to left; swiping to the next page goes the same way.
@@ -448,16 +452,33 @@ class Settings {
   /// what decides how heavy the daily load gets.
   int newPerDay;
 
+  /// Listen mode: the pause to recall a word before its meaning is said,
+  /// whether the meaning is said at all, the Japanese said twice, and the
+  /// playlist starting over at the end.
+  double listenThinkSeconds;
+  bool listenSayMeaning;
+  bool listenTwice;
+  bool listenLoop;
+
   Map<String, dynamic> toJson() => {
     'rightToLeft': rightToLeft,
     'speechRate': speechRate,
     'newPerDay': newPerDay,
+    'listenThinkSeconds': listenThinkSeconds,
+    'listenSayMeaning': listenSayMeaning,
+    'listenTwice': listenTwice,
+    'listenLoop': listenLoop,
   };
 
   factory Settings.fromJson(Map<String, dynamic>? j) => Settings(
     rightToLeft: j?['rightToLeft'] as bool? ?? true,
     speechRate: (j?['speechRate'] as num?)?.toDouble() ?? 0.45,
     newPerDay: ((j?['newPerDay'] as num?)?.toInt() ?? 20).clamp(0, 200),
+    listenThinkSeconds: ((j?['listenThinkSeconds'] as num?)?.toDouble() ?? 2.5)
+        .clamp(0.5, 10.0),
+    listenSayMeaning: j?['listenSayMeaning'] as bool? ?? true,
+    listenTwice: j?['listenTwice'] as bool? ?? false,
+    listenLoop: j?['listenLoop'] as bool? ?? false,
   );
 }
 

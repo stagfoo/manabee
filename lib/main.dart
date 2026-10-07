@@ -4,7 +4,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'screens/settings_screen.dart';
 import 'screens/shell.dart';
-import 'services/jisho.dart';
+import 'services/dictionary.dart';
 import 'services/speech.dart';
 import 'services/store.dart';
 import 'theme.dart';
@@ -23,20 +23,24 @@ Future<void> main() async {
   final library = Library(FileStorage(docs.path));
   await library.load();
   Speech.instance.rate = library.settings.speechRate;
-  runApp(ManabeeApp(library: library, jisho: Jisho()));
+  runApp(ManabeeApp(library: library, dictionary: AppDictionary()));
 }
 
 class ManabeeApp extends StatelessWidget {
-  const ManabeeApp({super.key, required this.library, required this.jisho});
+  const ManabeeApp({
+    super.key,
+    required this.library,
+    required this.dictionary,
+  });
 
   final Library library;
-  final Jisho jisho;
+  final Dictionary dictionary;
 
   @override
   Widget build(BuildContext context) {
     return AppScope(
       library: library,
-      jisho: jisho,
+      dictionary: dictionary,
       child: MaterialApp(
         title: 'manabee',
         debugShowCheckedModeBanner: false,

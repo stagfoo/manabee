@@ -100,9 +100,12 @@ class SettingsScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'OCR runs on the device with Google ML Kit (Japanese model). '
-                  'Dictionary lookups come from jisho.org, which serves JMdict '
-                  '© the Electronic Dictionary Research and Development Group '
-                  '(CC BY-SA 4.0) — lookups need internet; saved words work offline.\n\n'
+                  'The dictionary is JMdict, built into the app and fully '
+                  'offline — © the Electronic Dictionary Research and '
+                  'Development Group, CC BY-SA 4.0 — with JLPT levels from '
+                  'open-anki-jlpt-decks (MIT). Searching by English meaning '
+                  'goes to jisho.org.\n\n'
+                  'Audio is your phone\'s own text-to-speech voices.\n\n'
                   'Fonts: Outfit and Space Mono, SIL Open Font Licence 1.1.\n\n'
                   'Your manga, bubbles and words never leave this device.',
                   style: T.bodyMd.copyWith(color: C.textDim),

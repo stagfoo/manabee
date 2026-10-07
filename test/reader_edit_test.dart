@@ -40,7 +40,7 @@ void main() {
       ),
     ]);
 
-    await tester.pumpWidget(ManabeeApp(library: lib, jisho: Jisho()));
+    await tester.pumpWidget(ManabeeApp(library: lib, dictionary: Jisho()));
     tester
         .state<NavigatorState>(find.byType(Navigator).first)
         .push(

@@ -18,7 +18,7 @@ Future<Library> pump(
   addTearDown(tester.view.reset);
   final lib = Library(MemoryStorage());
   seed?.call(lib);
-  await tester.pumpWidget(ManabeeApp(library: lib, jisho: Jisho()));
+  await tester.pumpWidget(ManabeeApp(library: lib, dictionary: Jisho()));
   await tester.pump();
   return lib;
 }

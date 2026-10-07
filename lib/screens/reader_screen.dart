@@ -147,7 +147,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<bool> _isWord(String q) async {
     try {
       final hira = katakanaToHiragana(q);
-      final results = await AppScope.jishoOf(context).lookup(q);
+      final results = await AppScope.dictionaryOf(context).lookup(q);
       return results.any(
         (e) => e.word == q || e.reading == q || e.reading == hira,
       );
@@ -156,8 +156,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  static bool _exact(Entry e, String q) =>
-      e.word == q || e.reading == q || e.reading == katakanaToHiragana(q);
+  static bool _exact(Entry e, String q) => isExactEntry(e, q);
 
   /// The text that was looked up, and — when it was conjugated — how it
   /// was taken back to its dictionary form.
@@ -188,7 +187,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   /// Looks up the longest word starting at [i] (core/scan.dart).
   Future<void> _scan(Bubble b, int i) async {
-    final jisho = AppScope.jishoOf(context);
+    final dictionary = AppScope.dictionaryOf(context);
     setState(() {
       _looking = true;
       _lookupError = null;
@@ -197,7 +196,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     ScanResult? r;
     String? error;
     try {
-      r = await scanWord(b.source, i, jisho.lookup);
+      r = await scanWord(b.source, i, dictionary.lookup);
     } on LookupException catch (e) {
       error = e.message;
     }
@@ -232,15 +231,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _lookupError = null;
     });
     try {
-      final jisho = AppScope.jishoOf(context);
-      var results = await jisho.lookup(query);
+      final dictionary = AppScope.dictionaryOf(context);
+      var results = await dictionary.lookup(query);
       Deinflection? form;
       // Conjugated, or with a particle on the end: the dictionary has no
       // exact entry, so undo the conjugation (core/deinflect.dart) and take
       // the first dictionary form it really has — あそべるよ → 遊ぶ.
       if (!results.any((e) => _exact(e, query))) {
         for (final d in deinflect(query).take(10)) {
-          final found = await jisho.lookup(d.term);
+          final found = await dictionary.lookup(d.term);
           final exact = found.where((e) => _exact(e, d.term)).toList();
           if (exact.isNotEmpty) {
             results = [...exact, ...found.where((e) => !exact.contains(e))];

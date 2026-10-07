@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models.dart';
+import 'dictionary.dart';
 
 class LookupException implements Exception {
   LookupException(this.message);
@@ -87,12 +88,13 @@ List<Entry> parseJisho(String body) {
   return out;
 }
 
-class Jisho {
+class Jisho implements Dictionary {
   Jisho({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
   final Map<String, List<Entry>> _cache = {};
 
+  @override
   Future<List<Entry>> lookup(String query) async {
     final q = query.trim();
     if (q.isEmpty) return const [];
