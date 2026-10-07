@@ -23,6 +23,8 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - **Scan page**: outline every text block on the page, tap one to read it
 - Vertical text put back into right-to-left column order; editable OCR text for fixing mistakes
 - Word chips split from each bubble, tap to look up
+- **Conjugations undone before lookup** (a small built-in deinflector, as in Yomichan): あそべるよ → strip よ → potential → 遊ぶ. Covers polite, past, te-form, negative, potential, passive, causative, volitional, たい, conditionals, ている/てる, ちゃう, adjectives, する/くる. jisho.org doesn't handle these itself
+- The form seen on the page is kept with the word ("On the page: あそべる · potential") and highlighted in its sentence
 - Dictionary entry in the sheet: kanji, reading, romaji, meanings, JLPT tag, audio
 - **Translation bubbles**: write your own translation and place it on the page; long-press to place, long-press-drag to move
 - Bubbles stay on their balloon at any zoom and screen size

@@ -10,12 +10,21 @@ import '../theme.dart';
 import 'common.dart';
 
 class EntryDetail extends StatelessWidget {
-  const EntryDetail(this.entry, {super.key, this.context_ = ''});
+  const EntryDetail(
+    this.entry, {
+    super.key,
+    this.context_ = '',
+    this.surface = '',
+  });
 
   final Entry entry;
 
   /// The sentence the word was found in, if any.
   final String context_;
+
+  /// The form it appeared in on the page, when that wasn't the dictionary
+  /// form.
+  final String surface;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +87,7 @@ class EntryDetail extends StatelessWidget {
           ),
         ],
         // Only a sentence the word is really in (see findInSentence).
-        if (findInSentence(entry, context_) != null) ...[
+        if (findInSentence(entry, context_, surface: surface) != null) ...[
           const SizedBox(height: 4),
           Text('FROM THE PAGE', style: T.monoSm),
           const SizedBox(height: 4),

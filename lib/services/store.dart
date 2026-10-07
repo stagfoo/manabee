@@ -191,13 +191,15 @@ class Library extends ChangeNotifier {
     Entry e, {
     String context = '',
     String? bubbleId,
+    String surface = '',
+    String form = '',
   }) {
     final id = Word.idFor(mangaId, e);
     if (words.any((w) => w.id == id)) return false;
     // Only a sentence the word is actually in. Looking a word up while a
     // different bubble is selected would otherwise file that bubble as the
     // word's example.
-    final inSentence = findInSentence(e, context) != null;
+    final inSentence = findInSentence(e, context, surface: surface) != null;
     words.add(
       Word(
         id: id,
@@ -205,6 +207,8 @@ class Library extends ChangeNotifier {
         entry: e,
         context: inSentence ? context : '',
         bubbleId: inSentence ? bubbleId : null,
+        surface: surface == e.word ? '' : surface,
+        form: surface == e.word ? '' : form,
       ),
     );
     changed();

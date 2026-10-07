@@ -190,6 +190,11 @@ void main() {
         isNotNull,
       );
       expect(findInSentence(tsuku, ''), isNull);
+      // Written in kana on the page: found by the reading's stem, or by the
+      // exact form seen when that's known.
+      final asobu = entry('遊ぶ', 'あそぶ', 'to play');
+      expect(findInSentence(asobu, 'また あとで あそべるよ'), (7, 9));
+      expect(findInSentence(asobu, 'また あとで あそべるよ', surface: 'あそべる'), (7, 11));
     });
 
     test('saving with another bubble selected stores no sentence', () {

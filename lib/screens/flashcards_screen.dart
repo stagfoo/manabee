@@ -302,6 +302,26 @@ class _Face extends StatelessWidget {
               style: T.monoBold.copyWith(color: C.textDim, fontSize: 14),
             ),
           ),
+          if (word.surface.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'On the page: '),
+                    TextSpan(
+                      text: word.surface,
+                      style: const TextStyle(color: C.lime),
+                    ),
+                    if (word.form.isNotEmpty)
+                      TextSpan(text: '  ·  ${word.form}'),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+                style: T.monoBold.copyWith(color: C.textDim, fontSize: 12),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Center(
             child: Text(
@@ -341,7 +361,8 @@ class _Face extends StatelessWidget {
           ],
           // Only when the word is really in it: words saved before 1.0.6
           // could carry whichever bubble happened to be selected.
-          if (findInSentence(e, word.context) case final match?) ...[
+          if (findInSentence(e, word.context, surface: word.surface)
+              case final match?) ...[
             const SizedBox(height: 12),
             _ContextCard(text: word.context, match: match, source: mangaTitle),
           ],

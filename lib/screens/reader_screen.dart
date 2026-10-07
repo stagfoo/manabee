@@ -19,6 +19,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/deinflect.dart';
 import '../core/geometry.dart';
 import '../core/kana.dart';
 import '../core/segmenter.dart';
@@ -154,6 +155,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
+  static bool _exact(Entry e, String q) =>
+      e.word == q || e.reading == q || e.reading == katakanaToHiragana(q);
+
+  /// The text that was looked up, and — when it was conjugated — how it
+  /// was taken back to its dictionary form.
+  String _surface = '';
+  Deinflection? _form;
+
   /// Word chips per bubble text, once the dictionary has settled any
   /// inner ー (core/segmenter.dart resolveStretches).
   final Map<String, List<String>> _resolved = {};
@@ -181,11 +190,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _lookupError = null;
     });
     try {
-      final results = await AppScope.jishoOf(context).lookup(query);
+      final jisho = AppScope.jishoOf(context);
+      var results = await jisho.lookup(query);
+      Deinflection? form;
+      // Conjugated, or with a particle on the end: the dictionary has no
+      // exact entry, so undo the conjugation (core/deinflect.dart) and take
+      // the first dictionary form it really has — あそべるよ → 遊ぶ.
+      if (!results.any((e) => _exact(e, query))) {
+        for (final d in deinflect(query).take(10)) {
+          final found = await jisho.lookup(d.term);
+          final exact = found.where((e) => _exact(e, d.term)).toList();
+          if (exact.isNotEmpty) {
+            results = [...exact, ...found.where((e) => !exact.contains(e))];
+            form = d;
+            break;
+          }
+        }
+      }
       if (!mounted || _query.text.trim() != query) return;
       setState(() {
         _results = results;
         _selected = 0;
+        _form = form;
+        _surface = form?.wordOnPage(query) ?? query;
         if (results.isEmpty) _lookupError = 'No dictionary match for "$query".';
       });
     } on LookupException catch (e) {
@@ -207,7 +234,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
       toast(context, 'Removed ${e.word} from your deck.');
     } else {
       final b = _activeBubble(m);
-      lib.saveWord(m.id, e, context: b?.source ?? '', bubbleId: b?.id);
+      lib.saveWord(
+        m.id,
+        e,
+        context: b?.source ?? '',
+        bubbleId: b?.id,
+        surface: _form == null ? '' : _surface,
+        form: _form?.label ?? '',
+      );
       HapticFeedback.lightImpact();
       toast(context, 'Added ${e.word} to your deck.');
     }
@@ -794,8 +828,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
       e.allMeanings,
       style: T.bodyMd.copyWith(color: const Color(0xFFD4D4DC)),
     ),
+    // How the page's form got here: あそべる → 遊ぶ, potential.
+    if (_form != null && _exact(e, _form!.term))
+      Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              const TextSpan(text: 'On the page: '),
+              TextSpan(
+                text: _surface,
+                style: const TextStyle(color: C.lime),
+              ),
+              TextSpan(text: '  ·  ${_form!.label}'),
+            ],
+          ),
+          style: T.monoBold.copyWith(color: C.textDim, fontSize: 12),
+        ),
+      ),
     // For the piece OCR missed: look it up, then drop it into the bubble.
-    if (active != null)
+    // Not when the word is already there in another form — adding 遊ぶ
+    // to a bubble that says あそべる would put words on the page that
+    // aren't on it.
+    if (active != null &&
+        findInSentence(e, active.source, surface: _surface) == null)
       Align(
         alignment: Alignment.centerLeft,
         child: TextButton.icon(

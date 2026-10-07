@@ -66,7 +66,7 @@ class _WordsScreenState extends State<WordsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              EntryDetail(w.entry, context_: w.context),
+              EntryDetail(w.entry, context_: w.context, surface: w.surface),
               const SizedBox(height: 16),
               GhostButton(
                 label: 'Remove from deck',

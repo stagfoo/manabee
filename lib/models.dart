@@ -185,9 +185,14 @@ bool readsBefore(Rect a, Rect b, {bool rightToLeft = true}) {
 /// Conjugated forms count: a word with kanji matches on its kanji stem
 /// (作る finds 作って), a kana word on all but its last kana (たべる finds
 /// たべた).
-(int, int)? findInSentence(Entry e, String sentence) {
+///
+/// [surface] is the form it was actually seen in (あそべる for 遊ぶ) and is
+/// tried first, so the whole conjugated word is what gets highlighted.
+/// Failing that, a word written in kana on the page is found by its
+/// reading's stem (あそ of あそぶ in あそべる).
+(int, int)? findInSentence(Entry e, String sentence, {String surface = ''}) {
   if (sentence.isEmpty) return null;
-  final tries = <String>[e.word, e.reading];
+  final tries = <String>[surface, e.word, e.reading];
   if (containsKanji(e.word)) {
     final runes = e.word.runes.toList();
     var end = runes.length;
@@ -195,12 +200,11 @@ bool readsBefore(Rect a, Rect b, {bool rightToLeft = true}) {
       end--;
     }
     tries.add(String.fromCharCodes(runes.sublist(0, end)));
-  } else {
-    for (final kana in [e.word, e.reading]) {
-      final runes = kana.runes.toList();
-      if (runes.length >= 3) {
-        tries.add(String.fromCharCodes(runes.sublist(0, runes.length - 1)));
-      }
+  }
+  for (final kana in [if (!containsKanji(e.word)) e.word, e.reading]) {
+    final runes = kana.runes.toList();
+    if (runes.length >= 3) {
+      tries.add(String.fromCharCodes(runes.sublist(0, runes.length - 1)));
     }
   }
   for (final t in tries) {
@@ -376,6 +380,8 @@ class Word {
     required this.entry,
     this.context = '',
     this.bubbleId,
+    this.surface = '',
+    this.form = '',
     this.review = const ReviewState(),
     DateTime? added,
   }) : added = added ?? DateTime.now();
@@ -392,6 +398,12 @@ class Word {
   /// The sentence it was found in.
   final String context;
   final String? bubbleId;
+
+  /// The word as it appeared on the page when that differs from the
+  /// dictionary form — あそべる for 遊ぶ — and what form that was
+  /// ("potential"). Empty when it was met in dictionary form.
+  final String surface;
+  final String form;
   ReviewState review;
   final DateTime added;
 
@@ -401,6 +413,8 @@ class Word {
     'entry': entry.toJson(),
     'context': context,
     if (bubbleId != null) 'bubbleId': bubbleId,
+    if (surface.isNotEmpty) 'surface': surface,
+    if (form.isNotEmpty) 'form': form,
     'review': review.toJson(),
     'added': added.toIso8601String(),
   };
@@ -411,6 +425,8 @@ class Word {
     entry: Entry.fromJson(j['entry'] as Map<String, dynamic>),
     context: j['context'] as String? ?? '',
     bubbleId: j['bubbleId'] as String?,
+    surface: j['surface'] as String? ?? '',
+    form: j['form'] as String? ?? '',
     review: ReviewState.fromJson(j['review'] as Map<String, dynamic>?),
     added: DateTime.tryParse(j['added'] as String? ?? ''),
   );
