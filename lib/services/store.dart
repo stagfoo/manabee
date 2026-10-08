@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/focus.dart';
 import '../core/srs.dart';
 import '../models.dart';
 
@@ -58,6 +59,9 @@ class MemoryStorage implements LibraryStorage {
   @override
   Future<void> write(String json) async => content = json;
 }
+
+/// The deck id meaning "the focus set" wherever a book id is taken.
+const String kFocusDeck = '__focus__';
 
 class Library extends ChangeNotifier {
   Library(this.storage);
@@ -188,9 +192,43 @@ class Library extends ChangeNotifier {
     changed();
   }
 
-  List<Word> wordsFor(String? mangaId) => mangaId == null
-      ? words
-      : words.where((w) => w.mangaId == mangaId).toList();
+  /// A deck's words: one book's, every word (null), or the focus set
+  /// ([kFocusDeck]).
+  List<Word> wordsFor(String? mangaId) => switch (mangaId) {
+    null => words,
+    kFocusDeck => words.where((w) => w.focus).toList(),
+    _ => words.where((w) => w.mangaId == mangaId).toList(),
+  };
+
+  int get focusCount => words.where((w) => w.focus).length;
+
+  /// Puts exactly [ids] in the focus set.
+  void setFocus(Set<String> ids) {
+    for (final w in words) {
+      w.focus = ids.contains(w.id);
+    }
+    changed();
+  }
+
+  void toggleFocus(Word w) {
+    w.focus = !w.focus;
+    changed();
+  }
+
+  /// Moves the focus set on to the next [count] unlearned words — from
+  /// [mangaId]'s words, or every book's — in the order they were saved
+  /// (core/focus.dart).
+  void focusNext({String? mangaId, int count = 20}) {
+    final candidates = [
+      for (final w in wordsFor(mangaId))
+        if (!w.review.learned) w.id,
+    ];
+    final current = {
+      for (final w in words)
+        if (w.focus) w.id,
+    };
+    setFocus(nextBatch(candidates, current, count).toSet());
+  }
 
   bool isSaved(String mangaId, Entry e) =>
       words.any((w) => w.id == Word.idFor(mangaId, e));

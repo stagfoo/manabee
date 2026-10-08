@@ -10,7 +10,9 @@ import '../core/srs.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../services/store.dart';
 import 'flashcards_screen.dart';
+import 'focus_screen.dart';
 import 'listen_screen.dart';
 import 'match_screen.dart';
 import 'quiz_screen.dart';
@@ -36,18 +38,40 @@ class StudyScreen extends StatefulWidget {
 }
 
 class _StudyScreenState extends State<StudyScreen> {
-  /// Null = all words.
+  /// The deck: a book's id, [kFocusDeck], or null for every word.
   String? _mangaId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Open on the focus set when there is one: it's what's being studied.
+    if (AppScope.read(context).focusCount > 0) _mangaId = kFocusDeck;
+  }
+
+  Future<void> _chooseFocus() async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const FocusScreen()));
+    if (!mounted) return;
+    final lib = AppScope.read(context);
+    setState(() => _mangaId = lib.focusCount > 0 ? kFocusDeck : null);
+  }
 
   @override
   Widget build(BuildContext context) {
     final lib = AppScope.library(context);
-    if (_mangaId != null && lib.mangaById(_mangaId!) == null) _mangaId = null;
+    final focusCount = lib.focusCount;
+    if (_mangaId == kFocusDeck) {
+      if (focusCount == 0) _mangaId = null;
+    } else if (_mangaId != null && lib.mangaById(_mangaId!) == null) {
+      _mangaId = null;
+    }
     final words = lib.wordsFor(_mangaId);
     final today = lib.dueToday(_mangaId);
     final learned = lib.learnedCount(_mangaId);
-    final withWords = lib.recent
-        .where((m) => lib.wordsFor(m.id).isNotEmpty)
+    // Manga once they've given you words; commonplace books always — you
+    // made those to study.
+    final decks = lib.recent
+        .where((m) => m.commonplace || lib.wordsFor(m.id).isNotEmpty)
         .toList();
 
     void open(Widget screen) =>
@@ -62,21 +86,33 @@ class _StudyScreenState extends State<StudyScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
+                if (focusCount > 0)
+                  _DeckChip(
+                    label: '🎯 Focus · $focusCount',
+                    on: _mangaId == kFocusDeck,
+                    onTap: () => setState(() => _mangaId = kFocusDeck),
+                  ),
                 _DeckChip(
                   label: 'All words',
                   on: _mangaId == null,
                   onTap: () => setState(() => _mangaId = null),
                 ),
-                for (final m in withWords)
+                for (final m in decks)
                   _DeckChip(
-                    label: m.title,
+                    label: m.commonplace ? '📒 ${m.title}' : m.title,
                     on: _mangaId == m.id,
                     onTap: () => setState(() => _mangaId = m.id),
                   ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          _FocusPanel(
+            count: focusCount,
+            learned: lib.learnedCount(kFocusDeck),
+            onChoose: _chooseFocus,
+          ),
+          const SizedBox(height: 8),
           _DueCard(
             today: today,
             deckSize: words.length,
@@ -289,7 +325,13 @@ class _ProgressRow extends StatelessWidget {
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: T.bodyLg),
+          Flexible(
+            child: Text(
+              label,
+              style: T.bodyLg,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           Text('$learned / $total', style: T.bodyMd.copyWith(color: C.textDim)),
         ],
       ),
@@ -343,6 +385,59 @@ class _Tile extends StatelessWidget {
         subtitle: Text(subtitle, style: T.bodyMd.copyWith(color: C.textDim)),
         trailing: const Icon(Icons.chevron_right_rounded, color: C.textDim),
         onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// The focus set at a glance, and the way into choosing it.
+class _FocusPanel extends StatelessWidget {
+  const _FocusPanel({
+    required this.count,
+    required this.learned,
+    required this.onChoose,
+  });
+
+  final int count;
+  final int learned;
+  final VoidCallback onChoose;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      child: Row(
+        children: [
+          const Text('🎯', style: TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count == 0
+                      ? 'Focus on a few at a time'
+                      : 'Focus: $count words',
+                  style: T.bodyLg.copyWith(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  count == 0
+                      ? 'Choose 20 words to study, then the next 20.'
+                      : '$learned learned · the rest of your words wait',
+                  style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: C.lime,
+              side: const BorderSide(color: C.lime),
+            ),
+            onPressed: onChoose,
+            child: Text(count == 0 ? 'Choose' : 'Edit'),
+          ),
+        ],
       ),
     );
   }

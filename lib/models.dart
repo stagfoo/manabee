@@ -390,6 +390,7 @@ class Word {
     this.bubbleId,
     this.surface = '',
     this.form = '',
+    this.focus = false,
     this.review = const ReviewState(),
     DateTime? added,
   }) : added = added ?? DateTime.now();
@@ -412,6 +413,9 @@ class Word {
   /// ("potential"). Empty when it was met in dictionary form.
   final String surface;
   final String form;
+
+  /// In the focus set: the few words being studied right now.
+  bool focus;
   ReviewState review;
   final DateTime added;
 
@@ -423,6 +427,7 @@ class Word {
     if (bubbleId != null) 'bubbleId': bubbleId,
     if (surface.isNotEmpty) 'surface': surface,
     if (form.isNotEmpty) 'form': form,
+    if (focus) 'focus': true,
     'review': review.toJson(),
     'added': added.toIso8601String(),
   };
@@ -435,6 +440,7 @@ class Word {
     bubbleId: j['bubbleId'] as String?,
     surface: j['surface'] as String? ?? '',
     form: j['form'] as String? ?? '',
+    focus: j['focus'] as bool? ?? false,
     review: ReviewState.fromJson(j['review'] as Map<String, dynamic>?),
     added: DateTime.tryParse(j['added'] as String? ?? ''),
   );

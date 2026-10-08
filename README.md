@@ -56,7 +56,8 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Confetti for finishing the day's cards, a quiz or a match board 🎉
 - **Quiz**: multiple choice, alternating word → meaning and meaning → word (practice; doesn't change the schedule)
 - **Match**: pair Japanese tiles with meanings, timed, with a miss count (practice)
-- Study all words, or one manga's
+- Study all words, one manga's, or one commonplace book's
+- **Focus**: study a few words at a time instead of a deck that only grows — tick words (filtered by book) or tap **Next 20** for the next 20 not-yet-learned, then the 20 after. The focus set is a deck of its own, first among the chips; words left out keep their progress
 
 **Other**
 - Japanese text-to-speech using the phone's own voice, adjustable speed
