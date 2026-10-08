@@ -441,6 +441,8 @@ class Settings {
     this.listenSayMeaning = true,
     this.listenTwice = false,
     this.listenLoop = false,
+    this.listenToneBefore = false,
+    this.listenMeaningFirst = false,
   });
 
   /// Manga reads right to left; swiping to the next page goes the same way.
@@ -460,6 +462,11 @@ class Settings {
   bool listenTwice;
   bool listenLoop;
 
+  /// Listen mode: the chime ahead of each word rather than after it, and
+  /// the meaning said before the Japanese rather than after.
+  bool listenToneBefore;
+  bool listenMeaningFirst;
+
   Map<String, dynamic> toJson() => {
     'rightToLeft': rightToLeft,
     'speechRate': speechRate,
@@ -468,6 +475,8 @@ class Settings {
     'listenSayMeaning': listenSayMeaning,
     'listenTwice': listenTwice,
     'listenLoop': listenLoop,
+    'listenToneBefore': listenToneBefore,
+    'listenMeaningFirst': listenMeaningFirst,
   };
 
   factory Settings.fromJson(Map<String, dynamic>? j) => Settings(
@@ -479,6 +488,8 @@ class Settings {
     listenSayMeaning: j?['listenSayMeaning'] as bool? ?? true,
     listenTwice: j?['listenTwice'] as bool? ?? false,
     listenLoop: j?['listenLoop'] as bool? ?? false,
+    listenToneBefore: j?['listenToneBefore'] as bool? ?? false,
+    listenMeaningFirst: j?['listenMeaningFirst'] as bool? ?? false,
   );
 }
 

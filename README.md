@@ -59,7 +59,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 
 **Other**
 - Japanese text-to-speech using the phone's own voice, adjustable speed
-- **Listen mode**: the deck as an audio playlist — each word in Japanese, a pause to recall it (adjustable "think time"), the meaning in English, a soft chime, next. Options: say the meaning or not, Japanese twice, loop, shuffle. Practice only; it doesn't move the flash-card schedule
+- **Listen mode**: the deck as an audio playlist — each word in Japanese, a pause to recall it (adjustable "think time"), the meaning in English, a soft chime, next. Options: chime before or after each word, Japanese first or meaning first (English → recall the Japanese, with the Japanese hidden until it's said), say the meaning or not, Japanese twice, loop, shuffle. Practice only; it doesn't move the flash-card schedule
 - Everything stored on-device in one JSON file; the dictionary is offline too, and only searching by English meaning goes online
 
 ## Install

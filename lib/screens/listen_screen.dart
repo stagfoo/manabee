@@ -36,7 +36,11 @@ class _ListenScreenState extends State<ListenScreen> {
   late List<Word> _queue;
   int _index = 0;
   bool _playing = false;
-  bool _revealed = false;
+
+  /// What's on screen for the word being played. Each side appears as
+  /// it's said, so meaning-first hides the Japanese until it's heard.
+  bool _showJapanese = true;
+  bool _showMeaning = false;
 
   /// Bumped to stop whatever is playing: every await in the loop checks
   /// it, so pause, skip and leaving the screen all cut in cleanly.
@@ -68,6 +72,8 @@ class _ListenScreenState extends State<ListenScreen> {
       thinkTime: Duration(milliseconds: (s.listenThinkSeconds * 1000).round()),
       sayMeaning: s.listenSayMeaning,
       repeatJapanese: s.listenTwice,
+      toneBefore: s.listenToneBefore,
+      meaningFirst: s.listenMeaningFirst,
     );
   }
 
@@ -85,16 +91,21 @@ class _ListenScreenState extends State<ListenScreen> {
       }
       final w = _queue[_index];
       final e = w.entry;
-      setState(() => _revealed = false);
+      final settings = _settingsFrom(lib.settings);
+      setState(() {
+        _showJapanese = !(settings.meaningFirst && settings.sayMeaning);
+        _showMeaning = false;
+      });
       final steps = listenSteps(
         e.reading.isEmpty ? e.word : e.reading,
         spokenMeaning(e.senses.isEmpty ? const [] : e.senses.first.glosses),
-        _settingsFrom(lib.settings),
+        settings,
       );
       for (final step in steps) {
         if (stopped()) return;
         switch (step.action) {
           case ListenAction.japanese:
+            setState(() => _showJapanese = true);
             final problem = await Speech.instance.say(step.text);
             if (problem != null) {
               if (mounted) toast(context, problem);
@@ -102,7 +113,7 @@ class _ListenScreenState extends State<ListenScreen> {
               return;
             }
           case ListenAction.meaning:
-            setState(() => _revealed = true);
+            setState(() => _showMeaning = true);
             final problem = await Speech.instance.sayEnglish(step.text);
             if (problem != null && !_warnedEnglish && mounted) {
               _warnedEnglish = true;
@@ -110,8 +121,9 @@ class _ListenScreenState extends State<ListenScreen> {
             }
           case ListenAction.pause:
             await Future.delayed(step.duration);
+          case ListenAction.reveal:
+            setState(() => _showMeaning = true);
           case ListenAction.tone:
-            setState(() => _revealed = true);
             await (widget.playTone ?? _playTone)();
         }
       }
@@ -121,10 +133,33 @@ class _ListenScreenState extends State<ListenScreen> {
     if (mounted && run == _run) setState(() => _playing = false);
   }
 
+  /// The chime player, set up once.
+  ///
+  /// Two things here are why the chime used to ring only once:
+  /// - mixWithOthers: by default the player takes Android audio focus, and
+  ///   the text-to-speech voice takes it straight back for the next word —
+  ///   after which the player stays silent. Mixing asks for no focus, so
+  ///   neither silences the other.
+  /// - ReleaseMode.stop with the source loaded once: each chime rewinds and
+  ///   resumes the same loaded sound rather than setting it up again, which
+  ///   on Android can quietly fail for a short clip played back to back.
+  Future<AudioPlayer> _tonePlayer() async {
+    final existing = _player;
+    if (existing != null) return existing;
+    final player = AudioPlayer();
+    await player.setAudioContext(
+      AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build(),
+    );
+    await player.setReleaseMode(ReleaseMode.stop);
+    await player.setSource(AssetSource('sounds/tone.wav'));
+    return _player = player;
+  }
+
   Future<void> _playTone() async {
-    final player = _player ??= AudioPlayer();
+    final player = await _tonePlayer();
     await player.stop();
-    await player.play(AssetSource('sounds/tone.wav'));
+    await player.seek(Duration.zero);
+    await player.resume();
     // tone.wav is 0.45 s; waiting it out keeps the next word off the chime.
     await Future.delayed(const Duration(milliseconds: 450));
   }
@@ -141,7 +176,8 @@ class _ListenScreenState extends State<ListenScreen> {
     _stop();
     setState(() {
       _index = to.clamp(0, _queue.length - 1);
-      _revealed = false;
+      _showJapanese = true;
+      _showMeaning = false;
     });
     if (wasPlaying) _play();
   }
@@ -151,7 +187,8 @@ class _ListenScreenState extends State<ListenScreen> {
     setState(() {
       _queue.shuffle(Random());
       _index = 0;
-      _revealed = false;
+      _showJapanese = true;
+      _showMeaning = false;
     });
   }
 
@@ -205,7 +242,13 @@ class _ListenScreenState extends State<ListenScreen> {
           : Column(
               children: [
                 Expanded(
-                  child: _NowPlaying(word: w, revealed: _revealed),
+                  child: _NowPlaying(
+                    word: w,
+                    // Paused, the word is always shown; playing, each side
+                    // appears as it's said.
+                    showJapanese: !_playing || _showJapanese,
+                    showMeaning: _showMeaning,
+                  ),
                 ),
                 SafeArea(
                   top: false,
@@ -275,27 +318,43 @@ class _ListenScreenState extends State<ListenScreen> {
 /// The word being played: big, with its reading; the meaning appears
 /// once it has been said.
 class _NowPlaying extends StatelessWidget {
-  const _NowPlaying({required this.word, required this.revealed});
+  const _NowPlaying({
+    required this.word,
+    required this.showJapanese,
+    required this.showMeaning,
+  });
 
   final Word word;
-  final bool revealed;
+  final bool showJapanese;
+  final bool showMeaning;
 
   @override
   Widget build(BuildContext context) {
     final e = word.entry;
+    Widget fade(bool on, Widget child) => AnimatedOpacity(
+      duration: const Duration(milliseconds: 250),
+      opacity: on ? 1 : 0,
+      child: child,
+    );
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(e.word, style: Jp.word, textAlign: TextAlign.center),
-            if (e.hasKanji) Text(e.reading, style: Jp.reading),
+            fade(
+              showJapanese,
+              Column(
+                children: [
+                  Text(e.word, style: Jp.word, textAlign: TextAlign.center),
+                  if (e.hasKanji) Text(e.reading, style: Jp.reading),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 250),
-              opacity: revealed ? 1 : 0,
-              child: Text(
+            fade(
+              showMeaning,
+              Text(
                 e.shortMeaning,
                 textAlign: TextAlign.center,
                 style: T.headlineMd.copyWith(fontWeight: FontWeight.w600),
@@ -358,6 +417,29 @@ class _Options extends StatelessWidget {
             ),
           ],
         ),
+        _Choice(
+          label: 'Chime',
+          options: const ['Before word', 'After word'],
+          selected: settings.listenToneBefore ? 0 : 1,
+          onSelected: (i) {
+            settings.listenToneBefore = i == 0;
+            onChanged();
+          },
+        ),
+        const SizedBox(height: 6),
+        _Choice(
+          label: 'Order',
+          options: const ['Japanese first', 'Meaning first'],
+          selected: settings.listenMeaningFirst ? 1 : 0,
+          // Meaning-first needs the meaning said; without it there's
+          // nothing to recall from.
+          enabled: settings.listenSayMeaning,
+          onSelected: (i) {
+            settings.listenMeaningFirst = i == 1;
+            onChanged();
+          },
+        ),
+        const SizedBox(height: 6),
         Wrap(
           spacing: 8,
           alignment: WrapAlignment.center,
@@ -374,6 +456,60 @@ class _Options extends StatelessWidget {
             ),
             chip('Loop', settings.listenLoop, (v) => settings.listenLoop = v),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A labelled two-way switch: "Chime  [Before word | After word]".
+class _Choice extends StatelessWidget {
+  const _Choice({
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.enabled = true,
+  });
+
+  final String label;
+  final List<String> options;
+  final int selected;
+  final ValueChanged<int> onSelected;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 64,
+          child: Text(label, style: T.bodyMd.copyWith(color: C.textDim)),
+        ),
+        Expanded(
+          child: SegmentedButton<int>(
+            segments: [
+              for (var i = 0; i < options.length; i++)
+                ButtonSegment(
+                  value: i,
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(options[i]),
+                  ),
+                ),
+            ],
+            selected: {selected},
+            showSelectedIcon: false,
+            onSelectionChanged: enabled ? (s) => onSelected(s.first) : null,
+            style: SegmentedButton.styleFrom(
+              selectedBackgroundColor: C.lime,
+              selectedForegroundColor: C.onLime,
+              foregroundColor: C.text,
+              disabledForegroundColor: C.inactive,
+              side: const BorderSide(color: C.ghostBorder),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
         ),
       ],
     );

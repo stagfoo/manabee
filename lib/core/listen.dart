@@ -7,7 +7,16 @@
 /// tested without audio.
 library;
 
-enum ListenAction { japanese, meaning, pause, tone }
+enum ListenAction {
+  japanese,
+  meaning,
+  pause,
+  tone,
+
+  /// Show the meaning on screen without saying it — when meanings are
+  /// off, after the think time.
+  reveal,
+}
 
 class ListenStep {
   const ListenStep(
@@ -30,6 +39,7 @@ class ListenStep {
   String toString() => switch (action) {
     ListenAction.pause => 'pause(${duration.inMilliseconds}ms)',
     ListenAction.tone => 'tone',
+    ListenAction.reveal => 'reveal',
     _ => '${action.name}($text)',
   };
 }
@@ -39,6 +49,8 @@ class ListenSettings {
     this.thinkTime = const Duration(milliseconds: 2500),
     this.sayMeaning = true,
     this.repeatJapanese = false,
+    this.toneBefore = false,
+    this.meaningFirst = false,
   });
 
   /// The pause after the Japanese: time to recall the meaning before it's
@@ -50,6 +62,14 @@ class ListenSettings {
 
   /// The word twice, for one that's new or hard to catch.
   final bool repeatJapanese;
+
+  /// The chime ahead of each word ("here comes one") rather than after it
+  /// ("that was one").
+  final bool toneBefore;
+
+  /// The meaning first and the Japanese after: recall how to say it,
+  /// rather than what it means.
+  final bool meaningFirst;
 }
 
 /// The steps for one word. [japanese] is what's spoken (the reading, so
@@ -60,20 +80,37 @@ List<ListenStep> listenSteps(
   ListenSettings s,
 ) {
   final short = Duration(milliseconds: s.thinkTime.inMilliseconds ~/ 3);
-  return [
+  final speakMeaning = s.sayMeaning && meaning.isNotEmpty;
+  final sayJapanese = [
     ListenStep(ListenAction.japanese, text: japanese),
     if (s.repeatJapanese) ...[
       ListenStep.pause(short),
       ListenStep(ListenAction.japanese, text: japanese),
     ],
-    ListenStep.pause(s.thinkTime),
-    if (s.sayMeaning && meaning.isNotEmpty) ...[
-      ListenStep(ListenAction.meaning, text: meaning),
-      ListenStep.pause(short),
-    ],
-    const ListenStep(ListenAction.tone),
-    ListenStep.pause(short),
   ];
+  final List<ListenStep> word;
+  if (speakMeaning && s.meaningFirst) {
+    word = [
+      ListenStep(ListenAction.meaning, text: meaning),
+      ListenStep.pause(s.thinkTime),
+      ...sayJapanese,
+      ListenStep.pause(short),
+    ];
+  } else {
+    word = [
+      ...sayJapanese,
+      ListenStep.pause(s.thinkTime),
+      if (speakMeaning) ...[
+        ListenStep(ListenAction.meaning, text: meaning),
+        ListenStep.pause(short),
+      ] else
+        const ListenStep(ListenAction.reveal),
+    ];
+  }
+  const tone = ListenStep(ListenAction.tone);
+  return s.toneBefore
+      ? [tone, ListenStep.pause(short), ...word]
+      : [...word, tone, ListenStep.pause(short)];
 }
 
 /// A meaning short enough to hear: the first sense's first two glosses,
