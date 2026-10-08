@@ -245,6 +245,7 @@ class Manga {
     this.lastPage = 0,
     DateTime? added,
     this.lastOpened,
+    this.commonplace = false,
   }) : chapters = chapters ?? [],
        bubbles = bubbles ?? [],
        added = added ?? DateTime.now();
@@ -260,6 +261,11 @@ class Manga {
   int lastPage;
   final DateTime added;
   DateTime? lastOpened;
+
+  /// A commonplace book: no pages, only words you add from the dictionary
+  /// yourself (days of the week, a topic, words from elsewhere). Kept off
+  /// the reading shelf, shown with the word decks.
+  final bool commonplace;
 
   int get pageCount => chapters.fold(0, (n, c) => n + c.pages.length);
 
@@ -280,6 +286,7 @@ class Manga {
     'lastPage': lastPage,
     'added': added.toIso8601String(),
     if (lastOpened != null) 'lastOpened': lastOpened!.toIso8601String(),
+    if (commonplace) 'commonplace': true,
   };
 
   factory Manga.fromJson(Map<String, dynamic> j) => Manga(
@@ -298,6 +305,7 @@ class Manga {
     lastPage: (j['lastPage'] as num?)?.toInt() ?? 0,
     added: DateTime.tryParse(j['added'] as String? ?? ''),
     lastOpened: DateTime.tryParse(j['lastOpened'] as String? ?? ''),
+    commonplace: j['commonplace'] as bool? ?? false,
   );
 }
 

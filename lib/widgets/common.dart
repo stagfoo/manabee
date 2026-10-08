@@ -194,7 +194,10 @@ class Cover extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          LibraryImage(manga.coverOrFirstPage, cacheWidth: 600),
+          if (manga.commonplace)
+            NotebookCover(title: manga.title)
+          else
+            LibraryImage(manga.coverOrFirstPage, cacheWidth: 600),
           if (badge != null) Positioned(right: 8, bottom: 8, child: badge!),
         ],
       ),
@@ -386,7 +389,8 @@ class WordRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onColor = color == C.lime ? C.onLime : C.text;
+    // Dark text on the light colours (lime, mint), white on violet.
+    final onColor = color == C.lime || color == C.mint ? C.onLime : C.text;
     final labelColor = onColor.withValues(alpha: 0.55);
     Widget cell(String label, String value, {bool jp = false}) => Expanded(
       child: Container(
@@ -570,4 +574,60 @@ Future<bool> confirm(
     ),
   );
   return ok ?? false;
+}
+
+/// A commonplace book's cover: a notebook with its name on it, since there
+/// are no pages to show.
+class NotebookCover extends StatelessWidget {
+  const NotebookCover({super.key, required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF8B63FF), C.violet, Color(0xFF5A35D6)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // The binding.
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 14,
+            child: Container(color: const Color(0x33000000)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(26, 22, 14, 56),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('📒', style: TextStyle(fontSize: 32)),
+                const SizedBox(height: 10),
+                Text(
+                  'COMMONPLACE',
+                  style: T.monoSm.copyWith(color: Colors.white70),
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    style: T.headlineMd.copyWith(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

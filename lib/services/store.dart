@@ -129,6 +129,17 @@ class Library extends ChangeNotifier {
       return bo.compareTo(ao);
     });
 
+  /// What can be read: everything but commonplace books, most recent
+  /// first.
+  List<Manga> get shelf => recent.where((m) => !m.commonplace).toList();
+
+  /// Makes an empty commonplace book called [title].
+  Manga addCommonplaceBook(String title) {
+    final m = Manga(id: newId(), title: title, commonplace: true);
+    upsertManga(m);
+    return m;
+  }
+
   void upsertManga(Manga m) {
     final i = mangas.indexWhere((x) => x.id == m.id);
     if (i < 0) {

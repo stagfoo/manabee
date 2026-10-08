@@ -94,94 +94,127 @@ class _WordsScreenState extends State<WordsScreen> {
       );
     }
     final words = lib.wordsFor(m.id).reversed.toList();
+    final book = m.commonplace;
+
+    final header = Row(
+      children: [
+        if (book) const Text('📒  ', style: TextStyle(fontSize: 20)),
+        Expanded(
+          child: Text(
+            m.title,
+            style: T.headlineMd.copyWith(fontSize: 22),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        GestureDetector(
+          onTap: book
+              ? null
+              : () => setState(() => _showBubbles = !_showBubbles),
+          child: CountPill(
+            _showBubbles ? m.bubbles.length : words.length,
+            light: true,
+          ),
+        ),
+        if (book) _BookMenu(book: m),
+      ],
+    );
+
+    final wordList = [
+      if (words.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text(
+            book
+                ? 'Empty so far. Search above — in Japanese or English — and '
+                      'tap a result to add it.'
+                : 'No words saved yet. Look one up below, or tap + while '
+                      'reading.',
+            style: T.bodyMd.copyWith(color: C.textDim),
+          ),
+        ),
+      for (final w in words) WordRow(w.entry, onTap: () => _showWord(w)),
+    ];
+
+    final dictionary = [
+      Text('Dictionary', style: T.headlineMd.copyWith(fontSize: 22)),
+      const SizedBox(height: 10),
+      TextField(
+        controller: _search,
+        textAlign: TextAlign.center,
+        textInputAction: TextInputAction.search,
+        style: T.bodyLg,
+        decoration: InputDecoration(
+          hintText: book ? '月曜日, Monday…' : 'kore, これ, this…',
+          fillColor: Colors.transparent,
+        ),
+        onSubmitted: _lookup,
+      ),
+      const SizedBox(height: 10),
+      if (_loading) const LinearProgressIndicator(minHeight: 2),
+      if (_error != null)
+        Text(_error!, style: T.bodyMd.copyWith(color: C.textDim)),
+      for (final e in _results.take(12))
+        WordRow(
+          e,
+          // Mint once it's in this book, so a set like the days of the
+          // week shows how far along it is.
+          color: lib.isSaved(m.id, e) ? C.mint : C.violet,
+          onTap: () {
+            final added = lib.saveWord(m.id, e);
+            toast(
+              context,
+              added
+                  ? 'Added ${e.word}.'
+                  : '${e.word} is already in this ${book ? 'book' : 'deck'}.',
+            );
+          },
+        ),
+    ];
 
     return GridScaffold(
       onBack: () => Navigator.maybePop(context),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  m.title,
+        children: book
+            // A commonplace book is built from the dictionary, so the
+            // search comes first and its words follow.
+            ? [
+                header,
+                const SizedBox(height: 12),
+                ...dictionary,
+                const SizedBox(height: 20),
+                Text(
+                  'In this book',
                   style: T.headlineMd.copyWith(fontSize: 22),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              GestureDetector(
-                onTap: () => setState(() => _showBubbles = !_showBubbles),
-                child: CountPill(
-                  _showBubbles ? m.bubbles.length : words.length,
-                  light: true,
+                const SizedBox(height: 6),
+                ...wordList,
+              ]
+            : [
+                header,
+                const SizedBox(height: 4),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Words')),
+                    ButtonSegment(value: true, label: Text('Bubbles')),
+                  ],
+                  selected: {_showBubbles},
+                  showSelectedIcon: false,
+                  style: SegmentedButton.styleFrom(
+                    selectedBackgroundColor: C.lime,
+                    selectedForegroundColor: C.onLime,
+                    foregroundColor: C.textDim,
+                    side: const BorderSide(color: C.ghostBorder),
+                  ),
+                  onSelectionChanged: (s) =>
+                      setState(() => _showBubbles = s.first),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Words')),
-              ButtonSegment(value: true, label: Text('Bubbles')),
-            ],
-            selected: {_showBubbles},
-            showSelectedIcon: false,
-            style: SegmentedButton.styleFrom(
-              selectedBackgroundColor: C.lime,
-              selectedForegroundColor: C.onLime,
-              foregroundColor: C.textDim,
-              side: const BorderSide(color: C.ghostBorder),
-            ),
-            onSelectionChanged: (s) => setState(() => _showBubbles = s.first),
-          ),
-          const SizedBox(height: 10),
-          if (_showBubbles)
-            ..._bubbleList(m)
-          else ...[
-            if (words.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'No words saved yet. Look one up below, or tap + while reading.',
-                  style: T.bodyMd.copyWith(color: C.textDim),
-                ),
-              ),
-            for (final w in words) WordRow(w.entry, onTap: () => _showWord(w)),
-          ],
-          const SizedBox(height: 20),
-          Text('Dictionary', style: T.headlineMd.copyWith(fontSize: 22)),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _search,
-            textAlign: TextAlign.center,
-            textInputAction: TextInputAction.search,
-            style: T.bodyLg,
-            decoration: const InputDecoration(
-              hintText: 'kore, これ, this…',
-              fillColor: Colors.transparent,
-            ),
-            onSubmitted: _lookup,
-          ),
-          const SizedBox(height: 10),
-          if (_loading) const LinearProgressIndicator(minHeight: 2),
-          if (_error != null)
-            Text(_error!, style: T.bodyMd.copyWith(color: C.textDim)),
-          for (final e in _results.take(12))
-            WordRow(
-              e,
-              color: C.violet,
-              onTap: () {
-                final added = lib.saveWord(m.id, e);
-                toast(
-                  context,
-                  added
-                      ? 'Added ${e.word}.'
-                      : '${e.word} is already in this deck.',
-                );
-              },
-            ),
-        ],
+                const SizedBox(height: 10),
+                if (_showBubbles) ..._bubbleList(m) else ...wordList,
+                const SizedBox(height: 20),
+                ...dictionary,
+              ],
       ),
     );
   }
@@ -261,5 +294,55 @@ class _WordsScreenState extends State<WordsScreen> {
           ),
         ),
     ];
+  }
+}
+
+/// Rename and delete, for a commonplace book.
+class _BookMenu extends StatelessWidget {
+  const _BookMenu({required this.book});
+
+  final Manga book;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded, color: C.text),
+      color: C.elevated,
+      onSelected: (v) async {
+        final lib = AppScope.read(context);
+        if (v == 'rename') {
+          final name = await promptText(
+            context,
+            title: 'Rename',
+            initial: book.title,
+          );
+          if (name != null && name.trim().isNotEmpty) {
+            book.title = name.trim();
+            lib.changed();
+          }
+        } else if (v == 'delete') {
+          final n = lib.wordsFor(book.id).length;
+          final ok = await confirm(
+            context,
+            'Delete ${book.title}?',
+            n == 0
+                ? 'The book is empty.'
+                : 'Its $n word${n == 1 ? '' : 's'} and their flash-card '
+                      'progress are removed too.',
+          );
+          if (ok && context.mounted) {
+            Navigator.pop(context);
+            await lib.deleteManga(book);
+          }
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'rename', child: Text('Rename')),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: C.danger)),
+        ),
+      ],
+    );
   }
 }

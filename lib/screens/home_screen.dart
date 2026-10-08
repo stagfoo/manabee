@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final lib = AppScope.library(context);
-    final mangas = lib.recent;
+    final mangas = lib.shelf;
 
     if (mangas.isEmpty) {
       return GridScaffold(

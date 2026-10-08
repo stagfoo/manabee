@@ -40,6 +40,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Dictionary search to add words by hand
 - Bubbles view: every translation you've written, tap to jump to its page
 - Saved words keep their full dictionary entry, so they work offline
+- **Commonplace books**: word lists of your own with no pages (days of the week, a topic, words from a song). Make one from the Words tab, then add words from the dictionary in Japanese or English; added results turn mint. They study like any other deck and stay off the reading shelf
 
 **Study**
 - **Flash cards, scheduled like Anki** (SM-2): furigana / kanji / romaji front, full entry on the back
