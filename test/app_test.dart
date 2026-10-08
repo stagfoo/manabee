@@ -48,7 +48,8 @@ void main() {
     expect(find.text('Practice'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded).last);
     await tester.pumpAndSettle();
-    expect(find.text('No words yet'), findsOneWidget);
+    // An empty Words tab offers a commonplace book to start.
+    expect(find.text('Commonplace book'), findsOneWidget);
   });
 
   testWidgets('a manga shows on the shelf with its progress', (tester) async {
