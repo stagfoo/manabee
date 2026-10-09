@@ -80,4 +80,38 @@ void main() {
     expect(dict.meta['jmdict'], isNotEmpty);
     expect(int.parse(dict.meta['entries']!), greaterThan(200000));
   });
+
+  group('sentences split into words, particles marked', () {
+    Future<String> split(String text) async {
+      final spans = await segmentSentence(text, dict.lookup);
+      return spans
+          .map(
+            (s) => '${text.substring(s.start, s.end)}${s.particle ? '*' : ''}',
+          )
+          .join(' ');
+    }
+
+    test('人がいっぱいいる: が is the particle, not がい (harm)', () async {
+      expect(await split('人がいっぱいいる！'), '人 が* いっぱい いる');
+    });
+
+    test('the yotsuba bubble', () async {
+      expect(
+        await split('とーちゃん ここ家がいっぱいあるな！'),
+        'とーちゃん ここ 家 が* いっぱい ある な*',
+      ); // な ends the sentence
+    });
+
+    test('a few common shapes', () async {
+      expect(await split('私は学生です'), '私 は* 学生 です');
+      expect(await split('本を読んだ'), '本 を* 読んだ');
+      expect(await split('学校に行く'), '学校 に* 行く');
+      expect(await split('東京から大阪まで'), '東京 から* 大阪 まで*');
+    });
+
+    test('particles are only particles after a word', () async {
+      // は starting a sentence is read as a word (はい, yes), not a topic.
+      expect(await split('はい'), 'はい');
+    });
+  });
 }

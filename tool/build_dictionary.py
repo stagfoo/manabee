@@ -161,8 +161,21 @@ def main():
         # Rank: common words first, then JLPT words, then the rest — what
         # a reader most likely meant when one spelling has several entries.
         rank = (0 if common else 2) + (0 if level else 1)
+        # A kana spelling of a word normally written in kanji ranks behind
+        # words actually written that way: は is the particle before it is
+        # 羽 (a feather, read は), に before 荷. Words usually written in
+        # kana (ここ, ある) keep their place.
+        kanji_word = bool(kanji) and "u" not in data
+        # Particles go first for their own kana: a small, closed set that
+        # JMdict doesn't always flag common (で, の), and the reader colours
+        # them by what comes back first.
+        particle = any("prt" in sn["p"] for sn in senses[:1])
         for f in dict.fromkeys(kanji + kana):
-            db.execute("INSERT OR IGNORE INTO form VALUES (?, ?, ?)", (f, eid, rank))
+            penalty = 2 if kanji_word and f in kana else 0
+            if particle and f in kana:
+                penalty = -10
+            db.execute("INSERT OR IGNORE INTO form VALUES (?, ?, ?)",
+                       (f, eid, rank + penalty))
             forms += 1
 
     tags = jm.get("tags", {})

@@ -94,7 +94,10 @@ void main() {
     expect(find.text('Your shelf is empty'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.inventory_2_outlined));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(ChoiceChip, '📒 Days of the week'), findsOneWidget);
+    expect(
+      find.widgetWithText(ChoiceChip, '📒 Days of the week'),
+      findsOneWidget,
+    );
     await lib.save();
   });
 }

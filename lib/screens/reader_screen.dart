@@ -163,6 +163,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String _surface = '';
   Deinflection? _form;
 
+  /// Each bubble text split into words, particles marked
+  /// (core/scan.dart segmentSentence) — worked out once per text.
+  final Map<String, List<WordSpan>> _words = {};
+
+  List<WordSpan>? _wordsFor(String source) {
+    if (_words.containsKey(source)) return _words[source];
+    _words[source] = const [];
+    final dictionary = AppScope.dictionaryOf(context);
+    segmentSentence(source, dictionary.lookup).then((spans) {
+      if (mounted) setState(() => _words[source] = spans);
+    });
+    return null;
+  }
+
   /// The highlighted word in a bubble — (bubble id, start, end) — and a
   /// long-pressed start for picking a span by hand.
   (String, int, int)? _span;
@@ -1007,6 +1021,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
               padding: const EdgeInsets.only(right: 8, bottom: 4),
               child: _TappableText(
                 text: b.source,
+                words: _wordsFor(b.source) ?? const [],
                 span: _span?.$1 == b.id ? (_span!.$2, _span!.$3) : null,
                 anchor: _anchor?.$1 == b.id ? _anchor!.$2 : null,
                 onTap: (i) => _tapChar(b, i),
@@ -1030,7 +1045,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               child: Text(
                 _anchor?.$1 == b.id
                     ? 'Now tap where the word ends.'
-                    : 'Tap where a word starts to look it up. Long-press a '
+                    : 'Tap where a word starts to look it up — words are '
+                          'spaced apart, particles in purple. Long-press a '
                           'character, then tap another, to pick any span. '
                           'The pencil edits the text.',
                 style: T.bodyMd.copyWith(color: C.inactive, fontSize: 11),
@@ -1738,6 +1754,7 @@ class _BubbleEditorState extends State<_BubbleEditor> {
 class _TappableText extends StatelessWidget {
   const _TappableText({
     required this.text,
+    this.words = const [],
     required this.onTap,
     required this.onLongPress,
     this.span,
@@ -1745,6 +1762,10 @@ class _TappableText extends StatelessWidget {
   });
 
   final String text;
+
+  /// The sentence's words: each starts with a little gap, and particles
+  /// are coloured, so its structure shows before anything is tapped.
+  final List<WordSpan> words;
   final (int, int)? span;
   final int? anchor;
   final ValueChanged<int> onTap;
@@ -1752,7 +1773,22 @@ class _TappableText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(children: [for (var i = 0; i < text.length; i++) _char(i)]);
+    // Each word is one unbreakable group, so a line wraps between words
+    // (いっぱい stays whole), never inside one.
+    final groups = <Widget>[];
+    var i = 0;
+    while (i < text.length) {
+      final word = words.where((w) => w.start == i).firstOrNull;
+      final end = word?.end ?? i + 1;
+      groups.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [for (var k = i; k < end; k++) _char(k)],
+        ),
+      );
+      i = end;
+    }
+    return Wrap(children: groups);
   }
 
   Widget _char(int i) {
@@ -1760,11 +1796,15 @@ class _TappableText extends StatelessWidget {
     if (c == '\n') return const SizedBox(width: double.infinity);
     final inSpan = span != null && i >= span!.$1 && i < span!.$2;
     final isAnchor = anchor == i;
+    final word = words.where((w) => i >= w.start && i < w.end).firstOrNull;
+    final wordStart = word != null && word.start == i && i > 0;
+    final particle = word?.particle ?? false;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => onTap(i),
       onLongPress: () => onLongPress(i),
       child: Container(
+        margin: EdgeInsets.only(left: wordStart ? 7 : 0),
         padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 3),
         decoration: BoxDecoration(
           color: inSpan ? C.lime : null,
@@ -1776,10 +1816,18 @@ class _TappableText extends StatelessWidget {
           style: T.jp.copyWith(
             fontSize: 20,
             height: 1.3,
-            color: inSpan ? C.onLime : C.text,
+            color: inSpan
+                ? C.onLime
+                : particle
+                ? _particleColour
+                : C.text,
           ),
         ),
       ),
     );
   }
 }
+
+/// Particles in the bubble's text: the violet of the design, lightened to
+/// read on the dark panel.
+const Color _particleColour = Color(0xFFB39DFF);

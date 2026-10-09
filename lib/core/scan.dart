@@ -166,3 +166,133 @@ Future<ScanResult?> scanWord(
   }
   return null;
 }
+
+/// One word of a sentence, as [segmentSentence] splits it.
+class WordSpan {
+  const WordSpan(this.start, this.end, {this.particle = false});
+
+  final int start;
+  final int end;
+
+  /// A grammatical particle (が, を, に…) — coloured apart from the words
+  /// it joins, so the sentence's structure shows.
+  final bool particle;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WordSpan &&
+      other.start == start &&
+      other.end == end &&
+      other.particle == particle;
+
+  @override
+  int get hashCode => Object.hash(start, end, particle);
+
+  @override
+  String toString() => '[$start,$end${particle ? ' p' : ''})';
+}
+
+/// Particles common enough in speech to split off ahead of a longer
+/// dictionary match. Longest first.
+const _particleForms = [
+  'から',
+  'まで',
+  'より',
+  'って',
+  'けど',
+  'ので',
+  'のに',
+  'でも',
+  'しか',
+  'が',
+  'は',
+  'を',
+  'に',
+  'で',
+  'と',
+  'の',
+  'も',
+  'へ',
+  'や',
+  'か',
+  'ね',
+  'よ',
+  'な',
+  'わ',
+  'ぞ',
+  'さ',
+  'し',
+];
+
+/// The copula and its forms, which start like particles (で, じゃ) but
+/// are words of their own: 学生です is 学生 + です, not 学生 + で + す.
+const _copulas = ['です', 'でし', 'でしょ', 'だ', 'だっ', 'じゃ', 'では'];
+
+bool _isParticle(Entry e) =>
+    !containsKanji(e.word) &&
+    e.senses.isNotEmpty &&
+    e.senses.first.partsOfSpeech.any((p) => p.contains('particle'));
+
+/// The sentence as words, left to right, each the longest dictionary match
+/// from where the last ended (see [scanWord]) — except that right after a
+/// word, a particle is taken as a particle: in 人がいっぱい the が is the
+/// subject marker, though がい (害, "harm") is a longer match.
+///
+/// Characters no word covers (punctuation, a misread character) are left
+/// out; spans don't overlap and come in order.
+Future<List<WordSpan>> segmentSentence(
+  String text,
+  Future<List<Entry>> Function(String) lookup,
+) async {
+  final out = <WordSpan>[];
+  var i = 0;
+  var afterWord = false;
+  while (i < text.length) {
+    if (scanWindow(text, i).isEmpty) {
+      i++;
+      afterWord = false;
+      continue;
+    }
+    if (afterWord && !_copulas.any((c) => text.startsWith(c, i))) {
+      final p = await _particleAt(text, i, lookup);
+      if (p != null) {
+        out.add(WordSpan(i, i + p, particle: true));
+        i += p;
+        // A word can follow a particle directly (がいっぱい).
+        afterWord = false;
+        continue;
+      }
+    }
+    final r = await scanWord(text, i, lookup);
+    if (r == null) {
+      i++;
+      afterWord = false;
+      continue;
+    }
+    final particle =
+        r.form == null &&
+        _particleForms.contains(r.surfaceOf(text)) &&
+        r.entries.isNotEmpty &&
+        _isParticle(r.entries.first);
+    out.add(WordSpan(r.start, r.end, particle: particle));
+    i = r.end;
+    afterWord = !particle;
+  }
+  return out;
+}
+
+/// The length of a particle starting at [i], if one does.
+Future<int?> _particleAt(
+  String text,
+  int i,
+  Future<List<Entry>> Function(String) lookup,
+) async {
+  for (final p in _particleForms) {
+    if (!text.startsWith(p, i)) continue;
+    final entries = await lookup(p);
+    if (entries.any((e) => isExactEntry(e, p) && _isParticle(e))) {
+      return p.length;
+    }
+  }
+  return null;
+}
