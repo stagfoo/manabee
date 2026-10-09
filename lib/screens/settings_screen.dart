@@ -105,6 +105,9 @@ class SettingsScreen extends StatelessWidget {
                   'Development Group, CC BY-SA 4.0 — with JLPT levels from '
                   'open-anki-jlpt-decks (MIT). Searching by English meaning '
                   'goes to jisho.org.\n\n'
+                  'Kanji Chain builds kanji from KanjiVG (© Ulrich Apel, '
+                  'CC BY-SA 3.0) with meanings and readings from KANJIDIC '
+                  '(EDRDG, CC BY-SA 4.0).\n\n'
                   'Audio is your phone\'s own text-to-speech voices.\n\n'
                   'Fonts: Outfit and Space Mono, SIL Open Font Licence 1.1.\n\n'
                   'Your manga, bubbles and words never leave this device.',

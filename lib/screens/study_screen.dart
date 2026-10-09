@@ -13,6 +13,7 @@ import '../widgets/common.dart';
 import '../services/store.dart';
 import 'flashcards_screen.dart';
 import 'focus_screen.dart';
+import 'kanji_chain_screen.dart';
 import 'listen_screen.dart';
 import 'match_screen.dart';
 import 'quiz_screen.dart';
@@ -139,6 +140,16 @@ class _StudyScreenState extends State<StudyScreen> {
                 builder: (_) => ListenScreen(mangaId: _mangaId),
               ),
             ),
+          ),
+          _Tile(
+            icon: Icons.sports_esports_outlined,
+            title: 'Kanji Chain',
+            subtitle: 'Slingshot game: fire parts together to build kanji',
+            enabled: true,
+            onTap: () => Navigator.of(
+              context,
+              rootNavigator: true,
+            ).push(MaterialPageRoute(builder: (_) => const KanjiChainScreen())),
           ),
           _Tile(
             icon: Icons.quiz_outlined,
