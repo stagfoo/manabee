@@ -42,7 +42,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Saved words keep their full dictionary entry, so they work offline
 - **Commonplace books**: word lists of your own with no pages (days of the week, a topic, words from a song). Make one from the Words tab, then add words from the dictionary in Japanese or English; added results turn mint. They study like any other deck and stay off the reading shelf
 
-**Study**
+**Study** — flash cards at the top, then three sections: **Writing** (Diary, Quiz, Match, Kanji Chain), **Listening** (Listen, Listening Quiz, Listening Match), **Speaking** (Shadowing)
 - **Flash cards, scheduled like Anki** (SM-2): furigana / kanji / romaji front, full entry on the back
 - **Again / Hard / Good / Easy**, each button showing when the card comes back (`1m`, `10m`, `1d`, `4d`)
 - Learning steps of 1 and 10 minutes within the sitting, then day intervals that grow with each card's ease
@@ -57,6 +57,9 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - **Quiz**: multiple choice, alternating word → meaning and meaning → word (practice; doesn't change the schedule)
 - **Match**: pair Japanese tiles with meanings, timed, with a miss count (practice)
 - Study all words, one manga's, or one commonplace book's
+- **Diary**: dated entries written in Japanese. **Check** (offline) shows the entry split into words with particles in purple and marks what the dictionary doesn't know (usually a typo — runs of one-kana "words" count too), doubled particles (がが), and polite and plain style mixed in one entry. Tap any word to look it up and save it to the **Diary words** commonplace book. It catches mistakes, not unnatural phrasing — there's no good offline Japanese grammar checker
+- **Listening Quiz**: hear the word, pick its meaning; the Japanese is shown only once you've answered
+- **Listening Match**: the Japanese tiles are speakers — tap to hear, pair with the meaning
 - **Shadowing**: hear the phone's voice say it — the manga sentence the word came from, or the word — record yourself, then play **You** and **Native** side by side as often as you like and grade yourself Again / Hard / Good / Easy. No fake pronunciation score: you judge, as in shadowing practice generally. Speaking has its own spaced-repetition schedule per word, separate from flash cards (saying and recognising are different skills); recordings stay on the phone
 - **Kanji Chain**: a slingshot game. Pull back and fire a kanji part into the part it combines with — 日 into 月 makes 明, with its meaning and readings. What you build stays on the board, so it chains: 木 + 木 → 林, then 木 + 林 → 森, scoring more. Three hearts; every loaded part can combine with something on the board; it starts with grade 1–2 kanji and widens as you score. 1,619 combinations from KanjiVG + KANJIDIC (`tool/build_kanji_combos.py`)
 - **Focus**: study a few words at a time instead of a deck that only grows — tick words (filtered by book) or tap **Next 20** for the next 20 not-yet-learned, then the 20 after. The focus set is a deck of its own, first among the chips; words left out keep their progress

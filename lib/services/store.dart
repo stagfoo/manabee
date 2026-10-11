@@ -63,12 +63,18 @@ class MemoryStorage implements LibraryStorage {
 /// The deck id meaning "the focus set" wherever a book id is taken.
 const String kFocusDeck = '__focus__';
 
+/// The id of the commonplace book diary words go into.
+const String kDiaryBookId = 'diary-words';
+
 class Library extends ChangeNotifier {
   Library(this.storage);
 
   final LibraryStorage storage;
   List<Manga> mangas = [];
   List<Word> words = [];
+
+  /// Diary entries, newest last.
+  List<DiaryEntry> diary = [];
   Settings settings = Settings();
   Timer? _saveTimer;
 
@@ -88,6 +94,10 @@ class Library extends ChangeNotifier {
             Word.fromJson(w as Map<String, dynamic>),
         ];
         settings = Settings.fromJson(j['settings'] as Map<String, dynamic>?);
+        diary = [
+          for (final d in j['diary'] as List? ?? const [])
+            DiaryEntry.fromJson(d as Map<String, dynamic>),
+        ];
       } catch (e) {
         // A corrupt library must not brick the app. Keep the bad file
         // aside rather than overwriting the only copy of someone's work.
@@ -106,6 +116,7 @@ class Library extends ChangeNotifier {
     'mangas': [for (final m in mangas) m.toJson()],
     'words': [for (final w in words) w.toJson()],
     'settings': settings.toJson(),
+    'diary': [for (final d in diary) d.toJson()],
   };
 
   /// Notifies now and saves shortly after. Dragging a bubble or paging
@@ -132,6 +143,28 @@ class Library extends ChangeNotifier {
       final bo = b.lastOpened ?? b.added;
       return bo.compareTo(ao);
     });
+
+  DiaryEntry newDiaryEntry() {
+    final e = DiaryEntry(id: newId(), written: DateTime.now());
+    diary.add(e);
+    changed();
+    return e;
+  }
+
+  void deleteDiaryEntry(DiaryEntry e) {
+    diary.removeWhere((d) => d.id == e.id);
+    changed();
+  }
+
+  /// The commonplace book that words looked up in the diary are saved to,
+  /// made the first time one is.
+  Manga diaryWordBook() {
+    final existing = mangas.where((m) => m.commonplace && m.id == kDiaryBookId);
+    if (existing.isNotEmpty) return existing.first;
+    final m = Manga(id: kDiaryBookId, title: 'Diary words', commonplace: true);
+    upsertManga(m);
+    return m;
+  }
 
   /// What can be read: everything but commonplace books, most recent
   /// first.

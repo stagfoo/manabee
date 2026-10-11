@@ -11,6 +11,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../services/store.dart';
+import 'diary_screen.dart';
 import 'flashcards_screen.dart';
 import 'focus_screen.dart';
 import 'kanji_chain_screen.dart';
@@ -129,42 +130,17 @@ class _StudyScreenState extends State<StudyScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Text('Practice', style: T.pill.copyWith(color: C.textDim)),
-          const SizedBox(height: 8),
-          _Tile(
-            icon: Icons.mic_rounded,
-            title: 'Shadowing',
-            subtitle: switch (lib.speakingDueToday(_mangaId).total) {
-              0 => 'Say it, compare with the voice, grade yourself',
-              final n => '$n to say today · record, compare, grade',
-            },
-            enabled: words.isNotEmpty,
-            onTap: () => Navigator.of(context, rootNavigator: true).push(
-              MaterialPageRoute(
-                builder: (_) => ShadowScreen(mangaId: _mangaId),
-              ),
-            ),
+          const _Section(
+            icon: Icons.edit_note_rounded,
+            title: 'Writing',
+            subtitle: 'Reading and writing Japanese',
           ),
           _Tile(
-            icon: Icons.headphones_rounded,
-            title: 'Listen',
-            subtitle: 'Audio playlist: Japanese, a pause, the meaning, a chime',
-            enabled: words.isNotEmpty,
-            onTap: () => Navigator.of(context, rootNavigator: true).push(
-              MaterialPageRoute(
-                builder: (_) => ListenScreen(mangaId: _mangaId),
-              ),
-            ),
-          ),
-          _Tile(
-            icon: Icons.sports_esports_outlined,
-            title: 'Kanji Chain',
-            subtitle: 'Slingshot game: fire parts together to build kanji',
+            icon: Icons.book_outlined,
+            title: 'Diary',
+            subtitle: 'Write in Japanese; check it offline, look words up',
             enabled: true,
-            onTap: () => Navigator.of(
-              context,
-              rootNavigator: true,
-            ).push(MaterialPageRoute(builder: (_) => const KanjiChainScreen())),
+            onTap: () => open(const DiaryScreen()),
           ),
           _Tile(
             icon: Icons.quiz_outlined,
@@ -179,6 +155,65 @@ class _StudyScreenState extends State<StudyScreen> {
             subtitle: 'Pair each word with its meaning',
             enabled: words.length >= kMinMatchWords,
             onTap: () => open(MatchScreen(mangaId: _mangaId)),
+          ),
+          _Tile(
+            icon: Icons.sports_esports_outlined,
+            title: 'Kanji Chain',
+            subtitle: 'Slingshot game: fire parts together to build kanji',
+            enabled: true,
+            onTap: () => Navigator.of(
+              context,
+              rootNavigator: true,
+            ).push(MaterialPageRoute(builder: (_) => const KanjiChainScreen())),
+          ),
+          const _Section(
+            icon: Icons.hearing_rounded,
+            title: 'Listening',
+            subtitle: 'Understanding Japanese by ear',
+          ),
+          _Tile(
+            icon: Icons.headphones_rounded,
+            title: 'Listen',
+            subtitle: 'Audio playlist: Japanese, a pause, the meaning, a chime',
+            enabled: words.isNotEmpty,
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(
+                builder: (_) => ListenScreen(mangaId: _mangaId),
+              ),
+            ),
+          ),
+          _Tile(
+            icon: Icons.record_voice_over_outlined,
+            title: 'Listening Quiz',
+            subtitle: 'Hear the word, pick its meaning',
+            enabled: words.length >= kMinQuizWords,
+            onTap: () => open(QuizScreen(mangaId: _mangaId, audio: true)),
+          ),
+          _Tile(
+            icon: Icons.volume_up_outlined,
+            title: 'Listening Match',
+            subtitle: 'Tap a tile to hear it; pair it with its meaning',
+            enabled: words.length >= kMinMatchWords,
+            onTap: () => open(MatchScreen(mangaId: _mangaId, audio: true)),
+          ),
+          const _Section(
+            icon: Icons.mic_none_rounded,
+            title: 'Speaking',
+            subtitle: 'Saying it out loud',
+          ),
+          _Tile(
+            icon: Icons.mic_rounded,
+            title: 'Shadowing',
+            subtitle: switch (lib.speakingDueToday(_mangaId).total) {
+              0 => 'Say it, compare with the voice, grade yourself',
+              final n => '$n to say today · record, compare, grade',
+            },
+            enabled: words.isNotEmpty,
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(
+                builder: (_) => ShadowScreen(mangaId: _mangaId),
+              ),
+            ),
           ),
           if (words.isEmpty)
             Padding(
@@ -467,4 +502,38 @@ class _FocusPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A heading over one group of practice: Writing, Listening, Speaking.
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
+    child: Row(
+      children: [
+        Icon(icon, color: C.lime, size: 22),
+        const SizedBox(width: 10),
+        Text(title, style: T.headlineMd.copyWith(fontSize: 20)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+          ),
+        ),
+      ],
+    ),
+  );
 }

@@ -66,6 +66,7 @@ List<QuizQuestion> buildQuiz(
   Random random, {
   int length = 10,
   int optionCount = 4,
+  bool alternate = true,
 }) {
   if (cards.length < kMinQuizWords) return const [];
   final pool = [...cards]..shuffle(random);
@@ -73,7 +74,9 @@ List<QuizQuestion> buildQuiz(
   final questions = <QuizQuestion>[];
   for (var q = 0; q < picked.length; q++) {
     final card = picked[q];
-    final direction = q.isEven
+    // Alternating directions; a listening quiz is always "what did you
+    // hear?", since there's no hearing a meaning.
+    final direction = !alternate || q.isEven
         ? QuizDirection.toMeaning
         : QuizDirection.toJapanese;
     String answerOf(GameCard c) =>

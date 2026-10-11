@@ -269,6 +269,21 @@ Future<List<WordSpan>> segmentSentence(
       afterWord = false;
       continue;
     }
+    // 今日は and 今晩は are greetings in the dictionary (こんにちは,
+    // こんばんは), so the longest match swallows the topic particle; in
+    // running text they're nearly always 今日 + は. Split when what's
+    // before the は is a word by itself.
+    final surface = r.surfaceOf(text);
+    if (r.form == null && surface.length > 1 && surface.endsWith('は')) {
+      final head = surface.substring(0, surface.length - 1);
+      final entries = await lookup(head);
+      if (entries.any((e) => isExactEntry(e, head))) {
+        out.add(WordSpan(r.start, r.end - 1));
+        i = r.end - 1;
+        afterWord = true;
+        continue;
+      }
+    }
     final particle =
         r.form == null &&
         _particleForms.contains(r.surfaceOf(text)) &&

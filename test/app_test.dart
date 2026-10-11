@@ -45,7 +45,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.inventory_2_outlined));
     await tester.pumpAndSettle();
     expect(find.text('No flash cards yet.'), findsOneWidget);
-    expect(find.text('Practice'), findsOneWidget);
+    expect(find.text('Writing'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded).last);
     await tester.pumpAndSettle();
     // An empty Words tab offers a commonplace book to start.

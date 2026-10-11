@@ -10,15 +10,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/games.dart';
+import '../services/speech.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/confetti.dart';
 import 'study_screen.dart';
 
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key, this.mangaId});
+  const MatchScreen({super.key, this.mangaId, this.audio = false});
 
   final String? mangaId;
+
+  /// The listening version: Japanese tiles are sounds, not text — tap one
+  /// to hear it, and pair it with its meaning.
+  final bool audio;
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
@@ -44,7 +49,11 @@ class _MatchScreenState extends State<MatchScreen> {
 
   void _deal() {
     final words = AppScope.read(context).wordsFor(widget.mangaId);
-    _game = MatchGame.deal([for (final w in words) gameCardOf(w)], Random());
+    final cards = [for (final w in words) gameCardOf(w)];
+    _readings = {
+      for (final c in cards) c.id: c.reading.isEmpty ? c.japanese : c.reading,
+    };
+    _game = MatchGame.deal(cards, Random());
     _watch
       ..reset()
       ..start();
@@ -54,7 +63,14 @@ class _MatchScreenState extends State<MatchScreen> {
     });
   }
 
+  /// What each card's Japanese tile says out loud.
+  Map<String, String> _readings = const {};
+
   void _tap(int i) {
+    final tile = _game.tiles[i];
+    if (widget.audio && tile.side == TileSide.japanese) {
+      Speech.instance.say(_readings[tile.cardId] ?? tile.label);
+    }
     switch (_game.tap(i)) {
       case MatchResult.matched:
         HapticFeedback.lightImpact();
@@ -92,7 +108,7 @@ class _MatchScreenState extends State<MatchScreen> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'MATCH',
+                      widget.audio ? 'LISTENING MATCH' : 'MATCH',
                       style: T.headlineMd.copyWith(
                         letterSpacing: 4,
                         fontWeight: FontWeight.w500,
@@ -160,6 +176,7 @@ class _MatchScreenState extends State<MatchScreen> {
                     cleared: _game.cleared.contains(i),
                     selected: _game.selected == i,
                     wrong: _flash == i,
+                    audio: widget.audio,
                     onTap: () => _tap(i),
                   ),
                 ),
@@ -178,6 +195,7 @@ class _Tile extends StatelessWidget {
     required this.selected,
     required this.wrong,
     required this.onTap,
+    this.audio = false,
   });
 
   final MatchTile tile;
@@ -185,6 +203,9 @@ class _Tile extends StatelessWidget {
   final bool selected;
   final bool wrong;
   final VoidCallback onTap;
+
+  /// Japanese tiles show a speaker rather than the word.
+  final bool audio;
 
   @override
   Widget build(BuildContext context) {
@@ -216,24 +237,31 @@ class _Tile extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Center(
-                child: Text(
-                  tile.label,
-                  textAlign: TextAlign.center,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: jp
-                      ? T.jp.copyWith(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: fg,
-                          height: 1.25,
-                        )
-                      : T.bodyMd.copyWith(
-                          color: fg,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                ),
+                child: jp && audio
+                    ? Icon(
+                        Icons.volume_up_rounded,
+                        size: 40,
+                        color: fg,
+                        semanticLabel: 'Play',
+                      )
+                    : Text(
+                        tile.label,
+                        textAlign: TextAlign.center,
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: jp
+                            ? T.jp.copyWith(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: fg,
+                                height: 1.25,
+                              )
+                            : T.bodyMd.copyWith(
+                                color: fg,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                      ),
               ),
             ),
           ),

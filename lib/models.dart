@@ -453,6 +453,37 @@ class Word {
   );
 }
 
+/// A diary entry, written in Japanese.
+class DiaryEntry {
+  DiaryEntry({
+    required this.id,
+    required this.written,
+    this.text = '',
+    DateTime? updated,
+  }) : updated = updated ?? written;
+
+  final String id;
+
+  /// The day it's about — when it was started.
+  final DateTime written;
+  String text;
+  DateTime updated;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'written': written.toIso8601String(),
+    'updated': updated.toIso8601String(),
+    'text': text,
+  };
+
+  factory DiaryEntry.fromJson(Map<String, dynamic> j) => DiaryEntry(
+    id: j['id'] as String,
+    written: DateTime.tryParse(j['written'] as String? ?? '') ?? DateTime.now(),
+    updated: DateTime.tryParse(j['updated'] as String? ?? ''),
+    text: j['text'] as String? ?? '',
+  );
+}
+
 class Settings {
   Settings({
     this.rightToLeft = true,

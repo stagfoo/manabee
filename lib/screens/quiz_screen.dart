@@ -1,5 +1,7 @@
 /// Multiple choice: alternately "what does this mean?" and "which word is
-/// this?". Practice only — it doesn't touch the flash-card schedule.
+/// this?" — or, as the listening quiz, "what did you hear?": the word is
+/// spoken, not shown, until you've answered. Practice only — it doesn't
+/// touch the flash-card schedule.
 library;
 
 import 'dart:math';
@@ -9,15 +11,19 @@ import 'package:flutter/services.dart';
 
 import '../core/games.dart';
 import '../core/kana.dart';
+import '../services/speech.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/confetti.dart';
 import 'study_screen.dart';
 
 class QuizScreen extends StatefulWidget {
-  const QuizScreen({super.key, this.mangaId});
+  const QuizScreen({super.key, this.mangaId, this.audio = false});
 
   final String? mangaId;
+
+  /// The listening quiz: hear the word, pick its meaning.
+  final bool audio;
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
@@ -29,6 +35,9 @@ class _QuizScreenState extends State<QuizScreen> {
   int _score = 0;
   int? _picked;
 
+  /// Which question has been spoken already, so each plays once on arrival.
+  int? _spoken;
+
   @override
   void initState() {
     super.initState();
@@ -37,7 +46,12 @@ class _QuizScreenState extends State<QuizScreen> {
 
   void _deal() {
     final words = AppScope.read(context).wordsFor(widget.mangaId);
-    _questions = buildQuiz([for (final w in words) gameCardOf(w)], Random());
+    _questions = buildQuiz(
+      [for (final w in words) gameCardOf(w)],
+      Random(),
+      alternate: !widget.audio,
+    );
+    _spoken = null;
     _index = 0;
     _score = 0;
     _picked = null;
@@ -74,7 +88,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'QUIZ',
+                      widget.audio ? 'LISTENING QUIZ' : 'QUIZ',
                       style: T.headlineMd.copyWith(
                         letterSpacing: 4,
                         fontWeight: FontWeight.w500,
@@ -134,8 +148,24 @@ class _QuizScreenState extends State<QuizScreen> {
     );
   }
 
+  Future<void> _say(QuizQuestion q) async {
+    final problem = await Speech.instance.say(
+      q.card.reading.isEmpty ? q.card.japanese : q.card.reading,
+    );
+    if (problem != null && mounted) toast(context, problem);
+  }
+
   Widget _question(QuizQuestion q) {
     final toMeaning = q.direction == QuizDirection.toMeaning;
+    if (widget.audio) {
+      if (_spoken != _index) {
+        _spoken = _index;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _say(q);
+        });
+      }
+      return _listeningQuestion(q);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -193,6 +223,86 @@ class _QuizScreenState extends State<QuizScreen> {
           ),
         const Spacer(),
         if (_picked != null)
+          LimeButton(
+            label: _index + 1 < _questions.length ? 'Next' : 'Finish',
+            icon: Icons.arrow_forward_rounded,
+            onPressed: () => setState(() {
+              _index++;
+              _picked = null;
+            }),
+          ),
+      ],
+    );
+  }
+
+  Widget _listeningQuestion(QuizQuestion q) {
+    final answered = _picked != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'WHAT DID YOU HEAR?',
+          style: T.monoSm,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Container(
+          constraints: const BoxConstraints(minHeight: 150),
+          padding: const EdgeInsets.all(20),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: C.violet,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton.filled(
+                tooltip: 'Hear it again',
+                iconSize: 40,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: C.violet,
+                ),
+                onPressed: () => _say(q),
+                icon: const Icon(Icons.volume_up_rounded),
+              ),
+              // The word itself only once it's answered: the point is to
+              // recognise it by ear.
+              if (answered) ...[
+                const SizedBox(height: 12),
+                Text(
+                  q.card.japanese,
+                  style: T.jp.copyWith(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (containsKanji(q.card.japanese))
+                  Text(q.card.reading, style: T.jp.copyWith(fontSize: 15)),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        for (var i = 0; i < q.options.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _Option(
+              label: q.options[i],
+              jp: false,
+              state: _picked == null
+                  ? _OptState.idle
+                  : q.isCorrect(i)
+                  ? _OptState.right
+                  : i == _picked
+                  ? _OptState.wrong
+                  : _OptState.idle,
+              onTap: () => _pick(i),
+            ),
+          ),
+        const Spacer(),
+        if (answered)
           LimeButton(
             label: _index + 1 < _questions.length ? 'Next' : 'Finish',
             icon: Icons.arrow_forward_rounded,

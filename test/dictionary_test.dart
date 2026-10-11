@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:manabee/core/diary_check.dart';
 import 'package:manabee/core/scan.dart';
 import 'package:manabee/services/dictionary.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -104,6 +105,8 @@ void main() {
 
     test('a few common shapes', () async {
       expect(await split('私は学生です'), '私 は* 学生 です');
+      // A greeting in the dictionary (こんにちは), but here: today + は.
+      expect(await split('今日は学校に行きました'), '今日 は* 学校 に* 行きました');
       expect(await split('本を読んだ'), '本 を* 読んだ');
       expect(await split('学校に行く'), '学校 に* 行く');
       expect(await split('東京から大阪まで'), '東京 から* 大阪 まで*');
@@ -112,6 +115,41 @@ void main() {
     test('particles are only particles after a word', () async {
       // は starting a sentence is read as a word (はい, yes), not a topic.
       expect(await split('はい'), 'はい');
+    });
+  });
+
+  group('diary checks, on the real dictionary', () {
+    Future<List<String>> check(String text) async => [
+      for (final f in await checkJapanese(text, dict.lookup))
+        '${f.kind.name}:${text.substring(f.start, f.end)}',
+    ];
+
+    test('clean writing passes', () async {
+      expect(await check('今日は学校に行きました。とても楽しかったです。'), isEmpty);
+      expect(await check('今日は学校に行った。楽しかった。'), isEmpty);
+    });
+
+    test('a typo is flagged', () async {
+      expect(await check('きのう、ごはんをたべまたです。'), contains(startsWith('notAWord:')));
+    });
+
+    test('a doubled particle', () async {
+      expect(await check('私がが学生です。'), contains('doubledParticle:がが'));
+    });
+
+    test('mixed polite and plain: the odd one out is flagged', () async {
+      expect(await check('今日は学校に行った。楽しかったです。明日も行きます。'), [
+        'mixedStyle:今日は学校に行った',
+      ]);
+    });
+
+    test('sentence style', () {
+      expect(styleOf('行きますよ'), Style.polite);
+      expect(styleOf('学生です'), Style.polite);
+      expect(styleOf('行くね'), Style.plain);
+      expect(styleOf('寒い'), Style.plain);
+      expect(styleOf('見た'), Style.plain);
+      expect(styleOf('東京'), Style.neither);
     });
   });
 }
