@@ -57,6 +57,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - **Quiz**: multiple choice, alternating word → meaning and meaning → word (practice; doesn't change the schedule)
 - **Match**: pair Japanese tiles with meanings, timed, with a miss count (practice)
 - Study all words, one manga's, or one commonplace book's
+- **Shadowing**: hear the phone's voice say it — the manga sentence the word came from, or the word — record yourself, then play **You** and **Native** side by side as often as you like and grade yourself Again / Hard / Good / Easy. No fake pronunciation score: you judge, as in shadowing practice generally. Speaking has its own spaced-repetition schedule per word, separate from flash cards (saying and recognising are different skills); recordings stay on the phone
 - **Kanji Chain**: a slingshot game. Pull back and fire a kanji part into the part it combines with — 日 into 月 makes 明, with its meaning and readings. What you build stays on the board, so it chains: 木 + 木 → 林, then 木 + 林 → 森, scoring more. Three hearts; every loaded part can combine with something on the board; it starts with grade 1–2 kanji and widens as you score. 1,619 combinations from KanjiVG + KANJIDIC (`tool/build_kanji_combos.py`)
 - **Focus**: study a few words at a time instead of a deck that only grows — tick words (filtered by book) or tap **Next 20** for the next 20 not-yet-learned, then the 20 after. The focus set is a deck of its own, first among the chips; words left out keep their progress
 

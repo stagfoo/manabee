@@ -21,6 +21,7 @@ import '../services/store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/confetti.dart';
+import '../widgets/srs_widgets.dart';
 
 class FlashcardsScreen extends StatefulWidget {
   const FlashcardsScreen({super.key, this.mangaId});
@@ -151,7 +152,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _Counts(
+                        SrsCounts(
                           newCards: _session.newCount,
                           learning: _session.learningCount,
                           review: _session.reviewCount,
@@ -159,7 +160,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                         ),
                         const SizedBox(height: 12),
                         _revealed
-                            ? _GradeRow(
+                            ? GradeRow(
                                 previews: previewAll(word.review, now),
                                 now: now,
                                 onGrade: (g) => _grade(word.id, g),
@@ -169,7 +170,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                             : Row(
                                 children: [
                                   Expanded(
-                                    child: _BigButton(
+                                    child: BigButton(
                                       label: 'Show answer',
                                       onPressed: () =>
                                           setState(() => _revealed = true),
@@ -191,7 +192,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   Widget _done(Library lib, DateTime now) {
     final nextLearning = _session.nextLearningDue;
     if (nextLearning != null) {
-      return _DoneMessage(
+      return DoneMessage(
         icon: Icons.hourglass_top_rounded,
         title: 'Learning cards coming up',
         body:
@@ -210,7 +211,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
         nextDue = d;
       }
     }
-    final message = _DoneMessage(
+    final message = DoneMessage(
       icon: Icons.check_circle_outline_rounded,
       title: deck.isEmpty
           ? 'No cards yet'
@@ -232,7 +233,7 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
           ),
           const SizedBox(height: 12),
         ],
-        _BigButton(label: 'Back', onPressed: () => Navigator.maybePop(context)),
+        BigButton(label: 'Back', onPressed: () => Navigator.maybePop(context)),
       ],
     );
     // Finishing a day's cards is the habit worth celebrating — not opening
@@ -527,183 +528,6 @@ class _ContextCard extends StatelessWidget {
   }
 }
 
-/// Anki's "12 + 3 + 20": new, learning, review, with the count the current
-/// card belongs to underlined.
-class _Counts extends StatelessWidget {
-  const _Counts({
-    required this.newCards,
-    required this.learning,
-    required this.review,
-    required this.current,
-  });
-
-  final int newCards;
-  final int learning;
-  final int review;
-  final ReviewState current;
-
-  @override
-  Widget build(BuildContext context) {
-    TextSpan count(int n, Color colour, bool on) => TextSpan(
-      text: '$n',
-      style: TextStyle(
-        color: colour,
-        fontWeight: FontWeight.w700,
-        decoration: on ? TextDecoration.underline : null,
-        decorationColor: colour,
-        decorationThickness: 2.5,
-      ),
-    );
-    const plus = TextSpan(
-      text: '  +  ',
-      style: TextStyle(color: C.inactive),
-    );
-    return Text.rich(
-      TextSpan(
-        children: [
-          count(newCards, Srs.newCards, current.isNew),
-          plus,
-          count(learning, Srs.learning, current.isLearning),
-          plus,
-          count(review, Srs.review, current.isReview),
-        ],
-      ),
-      style: T.bodyLg.copyWith(fontSize: 18),
-    );
-  }
-}
-
-/// Again · Hard · Good · Easy, each labelled with where the card lands.
-/// Big targets: a mis-tap here costs a card weeks of schedule.
-class _GradeRow extends StatelessWidget {
-  const _GradeRow({
-    required this.previews,
-    required this.now,
-    required this.onGrade,
-  });
-
-  final Map<Grade, ReviewState> previews;
-  final DateTime now;
-  final ValueChanged<Grade> onGrade;
-
-  static const _buttons = {
-    Grade.again: ('Again', Srs.again),
-    Grade.hard: ('Hard', Srs.hard),
-    Grade.good: ('Good', Srs.good),
-    Grade.easy: ('Easy', Srs.easy),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (final g in Grade.values) ...[
-          if (g != Grade.again) const SizedBox(width: 8),
-          Expanded(
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: _buttons[g]!.$2,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(0, 60),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () => onGrade(g),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _buttons[g]!.$1,
-                      style: T.pill.copyWith(color: Colors.white, fontSize: 16),
-                    ),
-                    Text(
-                      formatInterval(previews[g]!.due!.difference(now)),
-                      style: T.bodyMd.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _BigButton extends StatelessWidget {
-  const _BigButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: double.infinity,
-    child: FilledButton(
-      style: FilledButton.styleFrom(
-        backgroundColor: C.lime,
-        foregroundColor: C.onLime,
-        minimumSize: const Size(0, 60),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: T.pill.copyWith(fontSize: 16),
-      ),
-      onPressed: onPressed,
-      child: Text(label),
-    ),
-  );
-}
-
-class _DoneMessage extends StatelessWidget {
-  const _DoneMessage({
-    required this.icon,
-    required this.title,
-    required this.body,
-    this.actions = const [],
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: C.lime),
-            const SizedBox(height: 16),
-            Text(title, style: T.headlineLg, textAlign: TextAlign.center),
-            if (body.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                body,
-                style: T.bodyMd.copyWith(color: C.textDim),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            const SizedBox(height: 24),
-            ...actions,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The square speaker beside Show answer — the 10 of a 90/10 row, as tall
-/// as the button so the two read as one control.
 class _SayButton extends StatelessWidget {
   const _SayButton({required this.entry});
 

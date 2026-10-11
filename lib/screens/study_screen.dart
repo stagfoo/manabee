@@ -15,6 +15,7 @@ import 'flashcards_screen.dart';
 import 'focus_screen.dart';
 import 'kanji_chain_screen.dart';
 import 'listen_screen.dart';
+import 'shadow_screen.dart';
 import 'match_screen.dart';
 import 'quiz_screen.dart';
 
@@ -130,6 +131,20 @@ class _StudyScreenState extends State<StudyScreen> {
           const SizedBox(height: 20),
           Text('Practice', style: T.pill.copyWith(color: C.textDim)),
           const SizedBox(height: 8),
+          _Tile(
+            icon: Icons.mic_rounded,
+            title: 'Shadowing',
+            subtitle: switch (lib.speakingDueToday(_mangaId).total) {
+              0 => 'Say it, compare with the voice, grade yourself',
+              final n => '$n to say today · record, compare, grade',
+            },
+            enabled: words.isNotEmpty,
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(
+                builder: (_) => ShadowScreen(mangaId: _mangaId),
+              ),
+            ),
+          ),
           _Tile(
             icon: Icons.headphones_rounded,
             title: 'Listen',

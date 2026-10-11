@@ -3,6 +3,11 @@
          INTERNET to debug and profile builds, so a release build would fail
          every lookup silently without this line. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Shadowing records you saying the word, to compare with the voice.
+         Asked for the first time you record; recordings stay on the
+         phone. (The record plugin declares it too; named here so the
+         app's own manifest says what it uses.) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="manabee"
         android:name="${applicationName}"

@@ -392,6 +392,7 @@ class Word {
     this.form = '',
     this.focus = false,
     this.review = const ReviewState(),
+    this.speaking = const ReviewState(),
     DateTime? added,
   }) : added = added ?? DateTime.now();
 
@@ -417,6 +418,10 @@ class Word {
   /// In the focus set: the few words being studied right now.
   bool focus;
   ReviewState review;
+
+  /// Shadowing's own schedule: saying a word is a different skill from
+  /// recognising it, so it's graded and spaced separately.
+  ReviewState speaking;
   final DateTime added;
 
   Map<String, dynamic> toJson() => {
@@ -429,6 +434,7 @@ class Word {
     if (form.isNotEmpty) 'form': form,
     if (focus) 'focus': true,
     'review': review.toJson(),
+    if (!speaking.isNew) 'speaking': speaking.toJson(),
     'added': added.toIso8601String(),
   };
 
@@ -442,6 +448,7 @@ class Word {
     form: j['form'] as String? ?? '',
     focus: j['focus'] as bool? ?? false,
     review: ReviewState.fromJson(j['review'] as Map<String, dynamic>?),
+    speaking: ReviewState.fromJson(j['speaking'] as Map<String, dynamic>?),
     added: DateTime.tryParse(j['added'] as String? ?? ''),
   );
 }

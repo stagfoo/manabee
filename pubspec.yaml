@@ -44,6 +44,10 @@ dependencies:
   # apps (jlptbenkyo, kidsdreamland).
   audioplayers: ^6.8.1
 
+  # Shadowing: records your attempt, played back against the reference
+  # voice for you to judge. Same package as jlptbenkyo's speaking practice.
+  record: ^7.1.2
+
   # Pronunciation, from the device's own Japanese voice.
   flutter_tts: ^4.2.5
 

@@ -277,6 +277,30 @@ class Library extends ChangeNotifier {
     changed();
   }
 
+  /// Writes a word's shadowing schedule (an answer, or an undo).
+  void setSpeaking(String wordId, ReviewState state) {
+    final w = words.where((w) => w.id == wordId).firstOrNull;
+    if (w == null) return;
+    w.speaking = state;
+    changed();
+  }
+
+  /// New words still allowed into shadowing today — the same daily limit
+  /// as flash cards, counted separately.
+  int newSpeakingAllowanceToday([DateTime? now]) {
+    final introduced = introducedToday(
+      words.map((w) => w.speaking),
+      now ?? DateTime.now(),
+    );
+    return (settings.newPerDay - introduced).clamp(0, settings.newPerDay);
+  }
+
+  DueCounts speakingDueToday(String? mangaId, [DateTime? now]) => countDue(
+    wordsFor(mangaId).map((w) => w.speaking),
+    now ?? DateTime.now(),
+    newPerDay: newSpeakingAllowanceToday(now),
+  );
+
   int learnedCount(String? mangaId) =>
       wordsFor(mangaId).where((w) => w.review.learned).length;
 
