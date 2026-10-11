@@ -20,7 +20,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 
 class ListenScreen extends StatefulWidget {
-  const ListenScreen({super.key, this.mangaId, this.playTone});
+  const ListenScreen({super.key, this.mangaId, this.playTone, this.seed});
 
   final String? mangaId;
 
@@ -28,19 +28,43 @@ class ListenScreen extends StatefulWidget {
   /// can hear the order of things; the app uses the bundled tone.wav.
   final Future<void> Function()? playTone;
 
+  /// For tests: a fixed shuffle.
+  final int? seed;
+
   @override
   State<ListenScreen> createState() => _ListenScreenState();
 }
 
+/// How well a word is known, from its flash-card schedule.
+Familiarity familiarityOf(Word w) {
+  final r = w.review;
+  if (r.isNew) return Familiarity.fresh;
+  if (r.learned) return Familiarity.known;
+  if (r.isLearning || r.lapses > 0) return Familiarity.weak;
+  return Familiarity.review;
+}
+
+ListenOrder _orderFrom(String s) => switch (s) {
+  'saved' => ListenOrder.saved,
+  'shuffled' => ListenOrder.shuffled,
+  _ => ListenOrder.weakest,
+};
+
 class _ListenScreenState extends State<ListenScreen> {
-  late List<Word> _queue;
+  late List<Word> _words;
+
+  /// The playlist: words in play order, repeats included
+  /// (core/listen.dart buildPlaylist).
+  List<PlaylistEntry> _entries = const [];
   int _index = 0;
   bool _playing = false;
+  late final Random _random = Random(widget.seed);
 
   /// What's on screen for the word being played. Each side appears as
   /// it's said, so meaning-first hides the Japanese until it's heard.
   bool _showJapanese = true;
   bool _showMeaning = false;
+  String? _sentence;
 
   /// Bumped to stop whatever is playing: every await in the loop checks
   /// it, so pause, skip and leaving the screen all cut in cleanly.
@@ -54,7 +78,8 @@ class _ListenScreenState extends State<ListenScreen> {
   @override
   void initState() {
     super.initState();
-    _queue = [...AppScope.read(context).wordsFor(widget.mangaId)];
+    _words = [...AppScope.read(context).wordsFor(widget.mangaId)];
+    _rebuild();
   }
 
   @override
@@ -65,41 +90,66 @@ class _ListenScreenState extends State<ListenScreen> {
     super.dispose();
   }
 
+  /// A fresh playlist from the current settings — and a fresh shuffle,
+  /// each time round a loop.
+  void _rebuild() {
+    final s = AppScope.read(context).settings;
+    _entries = buildPlaylist(
+      [for (final w in _words) familiarityOf(w)],
+      _orderFrom(s.listenOrder),
+      _random,
+      repeats: s.listenRepeats,
+    );
+    _index = 0;
+  }
+
+  Word? get _current {
+    if (_entries.isEmpty) return null;
+    final i = _index.clamp(0, _entries.length - 1);
+    return _words[_entries[i].word];
+  }
+
   /// Read fresh for every word, so changing an option mid-playlist takes
   /// effect from the next word.
-  static ListenSettings _settingsFrom(Settings s) {
+  static ListenSettings _settingsFrom(Settings s, Familiarity f) {
+    final base = Duration(milliseconds: (s.listenThinkSeconds * 1000).round());
     return ListenSettings(
-      thinkTime: Duration(milliseconds: (s.listenThinkSeconds * 1000).round()),
+      thinkTime: s.listenAdaptive ? adaptiveThinkTime(base, f) : base,
       sayMeaning: s.listenSayMeaning,
       repeatJapanese: s.listenTwice,
       toneBefore: s.listenToneBefore,
       meaningFirst: s.listenMeaningFirst,
+      saySentence: s.listenSentence,
     );
   }
 
   Future<void> _play() async {
-    if (_queue.isEmpty) return;
+    if (_entries.isEmpty) return;
     final run = ++_run;
     final lib = AppScope.read(context);
     setState(() => _playing = true);
     bool stopped() => !mounted || run != _run;
 
     while (!stopped()) {
-      if (_index >= _queue.length) {
+      if (_index >= _entries.length) {
         if (!lib.settings.listenLoop) break;
-        setState(() => _index = 0);
+        setState(_rebuild);
       }
-      final w = _queue[_index];
+      final w = _words[_entries[_index].word];
       final e = w.entry;
-      final settings = _settingsFrom(lib.settings);
+      final settings = _settingsFrom(lib.settings, familiarityOf(w));
       setState(() {
         _showJapanese = !(settings.meaningFirst && settings.sayMeaning);
         _showMeaning = false;
+        _sentence = null;
       });
+      final inSentence =
+          findInSentence(e, w.context, surface: w.surface) != null;
       final steps = listenSteps(
         e.reading.isEmpty ? e.word : e.reading,
         spokenMeaning(e.senses.isEmpty ? const [] : e.senses.first.glosses),
         settings,
+        sentence: inSentence ? w.context : '',
       );
       for (final step in steps) {
         if (stopped()) return;
@@ -119,6 +169,9 @@ class _ListenScreenState extends State<ListenScreen> {
               _warnedEnglish = true;
               toast(context, problem);
             }
+          case ListenAction.sentence:
+            setState(() => _sentence = step.text);
+            await Speech.instance.say(step.text);
           case ListenAction.pause:
             await Future.delayed(step.duration);
           case ListenAction.reveal:
@@ -175,29 +228,46 @@ class _ListenScreenState extends State<ListenScreen> {
     final wasPlaying = _playing;
     _stop();
     setState(() {
-      _index = to.clamp(0, _queue.length - 1);
+      _index = to.clamp(0, _entries.length - 1);
       _showJapanese = true;
       _showMeaning = false;
+      _sentence = null;
     });
     if (wasPlaying) _play();
   }
 
-  void _shuffle() {
-    _stop();
-    setState(() {
-      _queue.shuffle(Random());
-      _index = 0;
-      _showJapanese = true;
-      _showMeaning = false;
+  /// The options, in a sheet: the main screen stays the word and the
+  /// controls. Changing the order or repeats starts a new playlist.
+  void _openOptions() {
+    final lib = AppScope.read(context);
+    final before = (lib.settings.listenOrder, lib.settings.listenRepeats);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => ListenableBuilder(
+        listenable: lib,
+        builder: (context, _) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _Options(settings: lib.settings, onChanged: lib.changed),
+          ),
+        ),
+      ),
+    ).then((_) {
+      if (!mounted) return;
+      final after = (lib.settings.listenOrder, lib.settings.listenRepeats);
+      if (after != before) {
+        _stop();
+        setState(_rebuild);
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final lib = AppScope.library(context);
-    final s = lib.settings;
-    final done = _index >= _queue.length;
-    final w = _queue.isEmpty ? null : _queue[done ? _queue.length - 1 : _index];
+    final done = _index >= _entries.length;
+    final w = _current;
+    final repeat = _entries.isEmpty || done ? 0 : _entries[_index].repeat;
 
     return Scaffold(
       backgroundColor: C.ground,
@@ -211,22 +281,22 @@ class _ListenScreenState extends State<ListenScreen> {
           onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(
-          _queue.isEmpty
+          _entries.isEmpty
               ? 'Listen'
-              : 'Listen  ${(_index + 1).clamp(1, _queue.length)} / ${_queue.length}',
+              : 'Listen  ${(_index + 1).clamp(1, _entries.length)} / ${_entries.length}',
           style: T.headlineMd,
         ),
         actions: [
           IconButton(
-            tooltip: 'Shuffle',
-            icon: const Icon(Icons.shuffle_rounded),
-            onPressed: _queue.length > 1 ? _shuffle : null,
+            tooltip: 'Options',
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: _openOptions,
           ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
           child: LinearProgressIndicator(
-            value: _queue.isEmpty ? 0 : _index / _queue.length,
+            value: _entries.isEmpty ? 0 : _index / _entries.length,
             minHeight: 4,
             backgroundColor: C.track,
             color: C.lime,
@@ -248,6 +318,8 @@ class _ListenScreenState extends State<ListenScreen> {
                     // appears as it's said.
                     showJapanese: !_playing || _showJapanese,
                     showMeaning: _showMeaning,
+                    sentence: _sentence,
+                    repeat: repeat,
                   ),
                 ),
                 SafeArea(
@@ -257,8 +329,6 @@ class _ListenScreenState extends State<ListenScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _Options(settings: s, onChanged: lib.changed),
-                        const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -298,7 +368,7 @@ class _ListenScreenState extends State<ListenScreen> {
                             IconButton(
                               tooltip: 'Next',
                               iconSize: 36,
-                              onPressed: _index < _queue.length - 1
+                              onPressed: _index < _entries.length - 1
                                   ? () => _jump(_index + 1)
                                   : null,
                               icon: const Icon(Icons.skip_next_rounded),
@@ -322,11 +392,19 @@ class _NowPlaying extends StatelessWidget {
     required this.word,
     required this.showJapanese,
     required this.showMeaning,
+    this.sentence,
+    this.repeat = 0,
   });
 
   final Word word;
   final bool showJapanese;
   final bool showMeaning;
+
+  /// The sentence being said, if it's that part of the word.
+  final String? sentence;
+
+  /// A repeat of a new or weak word, rather than its first play.
+  final int repeat;
 
   @override
   Widget build(BuildContext context) {
@@ -342,6 +420,14 @@ class _NowPlaying extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (repeat > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'AGAIN',
+                  style: T.monoSm.copyWith(color: C.mint, fontSize: 12),
+                ),
+              ),
             fade(
               showJapanese,
               Column(
@@ -360,6 +446,14 @@ class _NowPlaying extends StatelessWidget {
                 style: T.headlineMd.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
+            if (sentence != null) ...[
+              const SizedBox(height: 20),
+              Text(
+                '「$sentence」',
+                textAlign: TextAlign.center,
+                style: T.jp.copyWith(fontSize: 17, color: C.textDim),
+              ),
+            ],
           ],
         ),
       ),
@@ -428,8 +522,22 @@ class _Options extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         _Choice(
-          label: 'Order',
-          options: const ['Japanese first', 'Meaning first'],
+          label: 'Playlist',
+          options: const ['As saved', 'Shuffle', 'Weakest'],
+          selected: switch (settings.listenOrder) {
+            'saved' => 0,
+            'shuffled' => 1,
+            _ => 2,
+          },
+          onSelected: (i) {
+            settings.listenOrder = const ['saved', 'shuffled', 'weakest'][i];
+            onChanged();
+          },
+        ),
+        const SizedBox(height: 6),
+        _Choice(
+          label: 'Say first',
+          options: const ['Japanese', 'Meaning'],
           selected: settings.listenMeaningFirst ? 1 : 0,
           // Meaning-first needs the meaning said; without it there's
           // nothing to recall from.
@@ -455,6 +563,21 @@ class _Options extends StatelessWidget {
               (v) => settings.listenTwice = v,
             ),
             chip('Loop', settings.listenLoop, (v) => settings.listenLoop = v),
+            chip(
+              'Repeats',
+              settings.listenRepeats,
+              (v) => settings.listenRepeats = v,
+            ),
+            chip(
+              'Adaptive pause',
+              settings.listenAdaptive,
+              (v) => settings.listenAdaptive = v,
+            ),
+            chip(
+              'Sentence',
+              settings.listenSentence,
+              (v) => settings.listenSentence = v,
+            ),
           ],
         ),
       ],

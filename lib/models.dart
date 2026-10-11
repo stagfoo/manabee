@@ -457,6 +457,10 @@ class Settings {
     this.listenLoop = false,
     this.listenToneBefore = false,
     this.listenMeaningFirst = false,
+    this.listenOrder = 'weakest',
+    this.listenRepeats = true,
+    this.listenAdaptive = true,
+    this.listenSentence = true,
   });
 
   /// Manga reads right to left; swiping to the next page goes the same way.
@@ -481,6 +485,15 @@ class Settings {
   bool listenToneBefore;
   bool listenMeaningFirst;
 
+  /// Listen mode, from the learning research: the playlist's order
+  /// ('saved', 'shuffled' or 'weakest'), new and weak words repeated at
+  /// widening gaps, think time adapted to how well a word is known, and
+  /// the sentence a word came from played after it.
+  String listenOrder;
+  bool listenRepeats;
+  bool listenAdaptive;
+  bool listenSentence;
+
   Map<String, dynamic> toJson() => {
     'rightToLeft': rightToLeft,
     'speechRate': speechRate,
@@ -491,6 +504,10 @@ class Settings {
     'listenLoop': listenLoop,
     'listenToneBefore': listenToneBefore,
     'listenMeaningFirst': listenMeaningFirst,
+    'listenOrder': listenOrder,
+    'listenRepeats': listenRepeats,
+    'listenAdaptive': listenAdaptive,
+    'listenSentence': listenSentence,
   };
 
   factory Settings.fromJson(Map<String, dynamic>? j) => Settings(
@@ -504,6 +521,10 @@ class Settings {
     listenLoop: j?['listenLoop'] as bool? ?? false,
     listenToneBefore: j?['listenToneBefore'] as bool? ?? false,
     listenMeaningFirst: j?['listenMeaningFirst'] as bool? ?? false,
+    listenOrder: j?['listenOrder'] as String? ?? 'weakest',
+    listenRepeats: j?['listenRepeats'] as bool? ?? true,
+    listenAdaptive: j?['listenAdaptive'] as bool? ?? true,
+    listenSentence: j?['listenSentence'] as bool? ?? true,
   );
 }
 
