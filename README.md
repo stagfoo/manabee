@@ -11,6 +11,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 
 **Library**
 - Import a manga from page images or `.cbz` / `.zip` archives, with a cover and title
+- **Photograph a book** page by page with the in-app camera (it stays open: shoot, turn the page, shoot; retake the last one) — good for children's picture books — or pick **photos you already took, put in the order they were taken** (EXIF capture time, then the camera's file-name timestamp, then the file date). Photos are turned upright and scaled to 2400 px on the long side as they're imported
 - Archives split into chapters automatically (one per archive, or one per folder inside)
 - Pages sorted naturally (`2.jpg` before `10.jpg`) and copied into app storage
 - Cover carousel with chapter progress, plus words-learned % per manga

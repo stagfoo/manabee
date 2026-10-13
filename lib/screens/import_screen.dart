@@ -10,11 +10,14 @@ library;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'dart:io';
+
 import '../core/pages.dart';
 import '../models.dart';
 import '../services/importer.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'page_camera_screen.dart';
 
 class ImportScreen extends StatefulWidget {
   const ImportScreen({super.key, this.mangaId});
@@ -138,6 +141,57 @@ class _ImportScreenState extends State<ImportScreen> {
     });
   }
 
+  String get _nextChapterTitle =>
+      '${(_chapters.length + 1).toString().padLeft(2, '0')}# Chapter';
+
+  /// The in-app camera, page by page; the shots come back in order.
+  Future<void> _photograph() async {
+    final shots = await Navigator.of(context, rootNavigator: true)
+        .push<List<String>>(
+          MaterialPageRoute(builder: (_) => const PageCameraScreen()),
+        );
+    if (shots == null || shots.isEmpty) return;
+    await _run('Saving ${shots.length} pages…', () async {
+      final c = await _importer.importPhotos(
+        _id,
+        paths: shots,
+        title: _nextChapterTitle,
+        sortByTaken: false,
+      );
+      for (final s in shots) {
+        await File(s).delete().catchError((_) => File(s));
+      }
+      setState(() {
+        _chapters.add(c);
+        _added.add(c);
+      });
+    });
+  }
+
+  /// Photos already taken, put in the order they were taken.
+  Future<void> _addPhotosByDate() async {
+    final files = await FilePicker.pickFiles(
+      type: FileType.image,
+      dialogTitle: 'Pick the photos of the pages',
+    );
+    if (files.isEmpty) return;
+    await _run('Ordering ${files.length} photos…', () async {
+      final c = await _importer.importPhotos(
+        _id,
+        files: files,
+        title: _nextChapterTitle,
+      );
+      if (c.pages.isEmpty) {
+        if (mounted) toast(context, 'None of those were images.');
+        return;
+      }
+      setState(() {
+        _chapters.add(c);
+        _added.add(c);
+      });
+    });
+  }
+
   Future<void> _addArchives() async {
     // FileType.any rather than custom ['cbz','zip']: Android has no MIME
     // type for .cbz, so a custom filter greys every comic archive out.
@@ -170,16 +224,37 @@ class _ImportScreenState extends State<ImportScreen> {
   void _addMenu() {
     showModalBottomSheet<void>(
       context: context,
+      // Sized to its four options rather than the default height cap,
+      // and scrollable on a short screen or with large text.
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _MenuRow(
+                icon: Icons.photo_camera_outlined,
+                title: 'Photograph pages',
+                subtitle: 'Camera stays open: shoot, turn the page, shoot',
+                onTap: () {
+                  Navigator.pop(context);
+                  _photograph();
+                },
+              ),
+              _MenuRow(
+                icon: Icons.schedule_rounded,
+                title: 'Photos, by date taken',
+                subtitle: 'Pages you already photographed, in shooting order',
+                onTap: () {
+                  Navigator.pop(context);
+                  _addPhotosByDate();
+                },
+              ),
+              _MenuRow(
                 icon: Icons.photo_library_outlined,
                 title: 'Page images',
-                subtitle: 'Pick every page of one chapter',
+                subtitle: 'Scans or files, ordered by name',
                 onTap: () {
                   Navigator.pop(context);
                   _addImages();

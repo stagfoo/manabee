@@ -8,6 +8,9 @@
          phone. (The record plugin declares it too; named here so the
          app's own manifest says what it uses.) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Photographing a book's pages to import it. Asked for the first time
+         the page camera opens; photos stay on the phone. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <application
         android:label="manabee"
         android:name="${applicationName}"

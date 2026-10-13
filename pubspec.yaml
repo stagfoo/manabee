@@ -48,6 +48,10 @@ dependencies:
   # voice for you to judge. Same package as jlptbenkyo's speaking practice.
   record: ^7.1.2
 
+  # Photographing a book page by page, without leaving the app between
+  # pages — the shutter stays up while you turn to the next one.
+  camera: ^0.12.1
+
   # Pronunciation, from the device's own Japanese voice.
   flutter_tts: ^4.2.5
 
