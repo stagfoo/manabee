@@ -16,11 +16,13 @@ library;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/deinflect.dart';
 import '../core/geometry.dart';
+import '../core/ocr_text.dart';
 import '../core/scan.dart';
 import '../core/kana.dart';
 import '../core/segmenter.dart';
@@ -163,6 +165,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   String _surface = '';
   Deinflection? _form;
 
+  /// When the looked-up text only made a word with one character read
+  /// differently (OCR's ば for ぱ), what it was read as.
+  String? _corrected;
+
   /// Each bubble text split into words, particles marked
   /// (core/scan.dart segmentSentence) — worked out once per text.
   final Map<String, List<WordSpan>> _words = {};
@@ -228,6 +234,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _results = r.entries;
       _selected = 0;
       _form = r.form;
+      _corrected = r.corrected;
     });
     _openSheet();
   }
@@ -262,11 +269,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
           }
         }
       }
+      // Still nothing: a character OCR commonly misreads, read the other
+      // way — いっばい is いっぱい.
+      String? corrected;
+      if (form == null &&
+          !results.any((e) => _exact(e, query)) &&
+          query.runes.length >= 3) {
+        for (final v in ocrVariants(query).take(40)) {
+          final found = await dictionary.lookup(v);
+          final exact = found.where((e) => _exact(e, v)).toList();
+          if (exact.isNotEmpty) {
+            results = [...exact, ...found.where((e) => !exact.contains(e))];
+            corrected = v;
+            break;
+          }
+        }
+      }
       if (!mounted || _query.text.trim() != query) return;
       setState(() {
         _results = results;
         _selected = 0;
         _form = form;
+        _corrected = corrected;
         _surface = form?.wordOnPage(query) ?? query;
         if (results.isEmpty) _lookupError = 'No dictionary match for "$query".';
       });
@@ -510,6 +534,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
       context,
       'Merged — now「${active.source.isEmpty ? active.translation : active.source}」',
     );
+  }
+
+  /// Puts the corrected reading into the bubble's text, where the span
+  /// was: いっばい becomes いっぱい.
+  void _fixText(Bubble b) {
+    final span = _span;
+    final fixed = _corrected;
+    if (span == null || span.$1 != b.id || fixed == null) return;
+    final (_, start, end) = span;
+    if (end > b.source.length || b.source.substring(start, end) != _surface) {
+      return;
+    }
+    b.source = b.source.replaceRange(start, end, fixed);
+    AppScope.read(context).changed();
+    HapticFeedback.selectionClick();
+    setState(() {
+      _span = (b.id, start, start + fixed.length);
+      _surface = fixed;
+      _query.text = fixed;
+      _corrected = null;
+    });
+    toast(context, 'Fixed: 「${b.source}」');
   }
 
   void _appendToBubble(Bubble b, String text) {
@@ -885,6 +931,36 @@ class _ReaderScreenState extends State<ReaderScreen> {
       e.allMeanings,
       style: T.bodyMd.copyWith(color: const Color(0xFFD4D4DC)),
     ),
+    // Read with a character corrected: say so, and offer to fix the text.
+    if (_corrected != null && active != null && _span?.$1 == active.id)
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.auto_fix_high_rounded, color: C.lime, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'Read as '),
+                    TextSpan(
+                      text: _corrected,
+                      style: const TextStyle(color: C.lime),
+                    ),
+                    TextSpan(text: ' — the text says $_surface'),
+                  ],
+                ),
+                style: T.bodyMd.copyWith(color: C.textDim, fontSize: 13),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _fixText(active),
+              child: const Text('Fix text'),
+            ),
+          ],
+        ),
+      ),
     // How the page's form got here: あそべる → 遊ぶ, potential.
     if (_form != null && _exact(e, _form!.term))
       Padding(
@@ -1028,6 +1104,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 onLongPress: (i) {
                   HapticFeedback.selectionClick();
                   setState(() => _anchor = (b.id, i));
+                },
+                onSpan: (start, end) {
+                  setState(() {
+                    _anchor = null;
+                    _span = (b.id, start, end);
+                  });
+                  _lookup(b.source.substring(start, end));
                 },
               ),
             ),
@@ -1751,12 +1834,13 @@ class _BubbleEditorState extends State<_BubbleEditor> {
 
 /// A bubble's Japanese as tappable characters: tap where a word starts,
 /// long-press then tap to pick a span. The looked-up word is highlighted.
-class _TappableText extends StatelessWidget {
+class _TappableText extends StatefulWidget {
   const _TappableText({
     required this.text,
     this.words = const [],
     required this.onTap,
     required this.onLongPress,
+    required this.onSpan,
     this.span,
     this.anchor,
   });
@@ -1771,14 +1855,106 @@ class _TappableText extends StatelessWidget {
   final ValueChanged<int> onTap;
   final ValueChanged<int> onLongPress;
 
+  /// A span picked by dragging the highlight: [start, end).
+  final void Function(int start, int end) onSpan;
+
+  @override
+  State<_TappableText> createState() => _TappableTextState();
+}
+
+/// Drag sideways to move an edge of the highlight: start on its end to
+/// move the end, on its start to move the start, anywhere else to start a
+/// fresh one. Sideways only, so the sheet still scrolls up and down.
+class _TappableTextState extends State<_TappableText> {
+  late List<GlobalKey> _keys;
+
+  /// While dragging: the end that stays put, and the live span.
+  int? _fixed;
+  (int, int)? _dragSpan;
+
+  @override
+  void initState() {
+    super.initState();
+    _keys = List.generate(widget.text.length, (_) => GlobalKey());
+  }
+
+  @override
+  void didUpdateWidget(_TappableText old) {
+    super.didUpdateWidget(old);
+    if (old.text.length != widget.text.length) {
+      _keys = List.generate(widget.text.length, (_) => GlobalKey());
+    }
+  }
+
+  /// The character under [global], or the nearest one on its line.
+  int? _indexAt(Offset global) {
+    int? best;
+    var bestDistance = double.infinity;
+    for (var i = 0; i < _keys.length; i++) {
+      final box = _keys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      if (rect.contains(global)) return i;
+      // Same line, off the end of it: snap to the closest character.
+      if (global.dy >= rect.top && global.dy <= rect.bottom) {
+        final d = (rect.center.dx - global.dx).abs();
+        if (d < bestDistance) {
+          bestDistance = d;
+          best = i;
+        }
+      }
+    }
+    return best;
+  }
+
+  void _dragStart(DragStartDetails d) {
+    final i = _indexAt(d.globalPosition);
+    if (i == null) return;
+    final span = widget.span;
+    if (span != null && i >= span.$1 && i < span.$2) {
+      // Grabbed the highlight: the edge nearer the finger moves.
+      final nearEnd = (span.$2 - 1 - i) <= (i - span.$1);
+      _fixed = nearEnd ? span.$1 : span.$2 - 1;
+    } else {
+      _fixed = i;
+    }
+    setState(() => _dragSpan = _spanTo(i));
+  }
+
+  (int, int) _spanTo(int i) {
+    final fixed = _fixed!;
+    return i < fixed ? (i, fixed + 1) : (fixed, i + 1);
+  }
+
+  void _dragUpdate(DragUpdateDetails d) {
+    if (_fixed == null) return;
+    final i = _indexAt(d.globalPosition);
+    if (i == null) return;
+    final next = _spanTo(i);
+    if (next != _dragSpan) {
+      HapticFeedback.selectionClick();
+      setState(() => _dragSpan = next);
+    }
+  }
+
+  void _dragEnd(DragEndDetails _) {
+    final span = _dragSpan;
+    setState(() {
+      _fixed = null;
+      _dragSpan = null;
+    });
+    if (span != null) widget.onSpan(span.$1, span.$2);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Each word is one unbreakable group, so a line wraps between words
     // (いっぱい stays whole), never inside one.
+    final text = widget.text;
     final groups = <Widget>[];
     var i = 0;
     while (i < text.length) {
-      final word = words.where((w) => w.start == i).firstOrNull;
+      final word = widget.words.where((w) => w.start == i).firstOrNull;
       final end = word?.end ?? i + 1;
       groups.add(
         Row(
@@ -1788,26 +1964,41 @@ class _TappableText extends StatelessWidget {
       );
       i = end;
     }
-    return Wrap(children: groups);
+    return GestureDetector(
+      // Where the finger went down, not where the drag was recognised a
+      // few pixels later — otherwise grabbing the highlight's first
+      // character would start one character too far along.
+      dragStartBehavior: DragStartBehavior.down,
+      onHorizontalDragStart: _dragStart,
+      onHorizontalDragUpdate: _dragUpdate,
+      onHorizontalDragEnd: _dragEnd,
+      child: Wrap(children: groups),
+    );
   }
 
   Widget _char(int i) {
-    final c = text[i];
-    if (c == '\n') return const SizedBox(width: double.infinity);
-    final inSpan = span != null && i >= span!.$1 && i < span!.$2;
-    final isAnchor = anchor == i;
-    final word = words.where((w) => i >= w.start && i < w.end).firstOrNull;
+    final c = widget.text[i];
+    if (c == '\n') return SizedBox(key: _keys[i], width: double.infinity);
+    final span = _dragSpan ?? widget.span;
+    final inSpan = span != null && i >= span.$1 && i < span.$2;
+    final isAnchor = widget.anchor == i;
+    final word = widget.words
+        .where((w) => i >= w.start && i < w.end)
+        .firstOrNull;
     final wordStart = word != null && word.start == i && i > 0;
     final particle = word?.particle ?? false;
     return GestureDetector(
+      key: _keys[i],
       behavior: HitTestBehavior.opaque,
-      onTap: () => onTap(i),
-      onLongPress: () => onLongPress(i),
+      onTap: () => widget.onTap(i),
+      onLongPress: () => widget.onLongPress(i),
       child: Container(
         margin: EdgeInsets.only(left: wordStart ? 7 : 0),
         padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 3),
         decoration: BoxDecoration(
-          color: inSpan ? C.lime : null,
+          color: inSpan
+              ? (_dragSpan != null ? C.lime.withValues(alpha: 0.75) : C.lime)
+              : null,
           border: isAnchor ? Border.all(color: C.lime, width: 1.5) : null,
           borderRadius: BorderRadius.circular(4),
         ),

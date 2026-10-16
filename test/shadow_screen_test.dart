@@ -56,7 +56,7 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     final lib = Library(MemoryStorage());
-    // One word with a sentence it really appears in, one without.
+    // One word saved from a bubble, one not: both are shadowed as words.
     lib.saveWord('m', entry('若い', 'わかい', 'young'), context: '若い頃の記憶');
     lib.saveWord('m', entry('森', 'もり', 'forest'));
     final audio = FakeShadowAudio();
@@ -67,10 +67,10 @@ void main() {
         .push(MaterialPageRoute(builder: (_) => ShadowScreen(audio: audio)));
     await tester.pumpAndSettle();
 
-    // The sentence, played on arrival.
-    expect(find.text('SAY THE SENTENCE'), findsOneWidget);
-    expect(find.text('若い頃の記憶'), findsOneWidget);
-    expect(audio.calls, ['native:若い頃の記憶']);
+    // The word, played on arrival — not the (unchecked) bubble sentence.
+    expect(find.text('SAY THE WORD'), findsOneWidget);
+    expect(find.text('若い頃の記憶'), findsNothing);
+    expect(audio.calls, ['native:わかい']);
     // Nothing of yours to play yet.
     final you = find.widgetWithText(OutlinedButton, '▶  You');
     expect(tester.widget<OutlinedButton>(you).onPressed, isNull);
@@ -85,7 +85,7 @@ void main() {
     await tester.tap(you);
     await tester.tap(find.widgetWithText(OutlinedButton, '▶  Native'));
     await tester.pumpAndSettle();
-    expect(audio.calls.sublist(4), ['yours', 'native:若い頃の記憶']);
+    expect(audio.calls.sublist(4), ['yours', 'native:わかい']);
 
     await tester.tap(find.text('Easy'));
     await tester.pumpAndSettle();
@@ -93,7 +93,7 @@ void main() {
     expect(wakai.speaking.intervalDays, 4); // its speaking schedule moved…
     expect(wakai.review.isNew, isTrue); // …its flash cards didn't
 
-    // The next card has no sentence: the word, by its reading.
+    // The next card: also the word, by its reading.
     expect(find.text('SAY THE WORD'), findsOneWidget);
     expect(audio.calls.last, 'native:もり');
     await tester.tap(find.text('Easy'));

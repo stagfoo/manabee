@@ -12,6 +12,7 @@ library;
 
 import 'deinflect.dart';
 import 'kana.dart';
+import 'ocr_text.dart';
 import '../models.dart';
 
 /// The longest a word is looked for. Long enough for いってきます or
@@ -24,6 +25,7 @@ class ScanResult {
     required this.end,
     required this.entries,
     this.form,
+    this.corrected,
   });
 
   /// The span of the text the word covers.
@@ -36,6 +38,10 @@ class ScanResult {
   /// How the span was taken back to a dictionary form, if it was
   /// conjugated.
   final Deinflection? form;
+
+  /// When the span only made a word with one character read differently
+  /// (いっばい as いっぱい — OCR confusing ば and ぱ), the corrected text.
+  final String? corrected;
 
   String surfaceOf(String text) => text.substring(start, end);
 }
@@ -115,6 +121,7 @@ Future<ScanResult?> scanWord(
   int start,
   Future<List<Entry>> Function(String) lookup, {
   int maxDeinflected = 20,
+  int maxCorrections = 40,
 }) async {
   final window = scanWindow(text, start);
   if (window.isEmpty) return null;
@@ -154,6 +161,28 @@ Future<ScanResult?> scanWord(
     if (budget <= 0) break;
   }
 
+  // Still nothing longer: a span that's a word once one character is read
+  // as what OCR confuses it with — いっばい is いっぱい.
+  var corrections = maxCorrections;
+  for (final p in prefixes) {
+    // Three characters at least: a two-character swap lands on some real
+    // word far too easily (がが would become 加賀), hiding a real mistake.
+    if (p.length <= exactLength || p.length < 3 || corrections <= 0) break;
+    for (final v in ocrVariants(p)) {
+      if (corrections-- <= 0) break;
+      final found = await lookup(v).catchError((_) => <Entry>[]);
+      final exact = found.where((e) => isExactEntry(e, v)).toList();
+      if (exact.isNotEmpty) {
+        return ScanResult(
+          start: start,
+          end: start + p.length,
+          entries: [...exact, ...found.where((e) => !exact.contains(e))],
+          corrected: v,
+        );
+      }
+    }
+  }
+
   if (bestExact >= 0) {
     final p = prefixes[bestExact];
     final found = asIs[bestExact];
@@ -169,7 +198,7 @@ Future<ScanResult?> scanWord(
 
 /// One word of a sentence, as [segmentSentence] splits it.
 class WordSpan {
-  const WordSpan(this.start, this.end, {this.particle = false});
+  const WordSpan(this.start, this.end, {this.particle = false, this.corrected});
 
   final int start;
   final int end;
@@ -177,6 +206,10 @@ class WordSpan {
   /// A grammatical particle (が, を, に…) — coloured apart from the words
   /// it joins, so the sentence's structure shows.
   final bool particle;
+
+  /// Set when the span is only a word with one character corrected — see
+  /// [ScanResult.corrected].
+  final String? corrected;
 
   @override
   bool operator ==(Object other) =>
@@ -289,7 +322,9 @@ Future<List<WordSpan>> segmentSentence(
         _particleForms.contains(r.surfaceOf(text)) &&
         r.entries.isNotEmpty &&
         _isParticle(r.entries.first);
-    out.add(WordSpan(r.start, r.end, particle: particle));
+    out.add(
+      WordSpan(r.start, r.end, particle: particle, corrected: r.corrected),
+    );
     i = r.end;
     afterWord = !particle;
   }

@@ -119,6 +119,18 @@ Future<List<Finding>> checkJapanese(
     suspect[i] = isJapanese(text.codeUnitAt(i));
   }
   for (final w in words) {
+    // A word only with a character changed is a typo with a known fix.
+    if (w.corrected != null) {
+      findings.add(
+        Finding(
+          FindingKind.notAWord,
+          w.start,
+          w.end,
+          '「${text.substring(w.start, w.end)}」 isn\'t a word — did you mean '
+          '「${w.corrected}」?',
+        ),
+      );
+    }
     final oneKana =
         w.end - w.start == 1 && isHiragana(text.codeUnitAt(w.start));
     if (w.particle || !oneKana) {

@@ -85,6 +85,21 @@ void main() {
     });
   });
 
+  test('OCR mix-ups: one swapped character at a time', () {
+    expect(ocrVariants('いっばい'), contains('いっぱい'));
+    expect(ocrVariants('いっばい'), contains('いつばい'));
+    expect(ocrVariants('ロボ'), contains('口ボ'));
+    expect(ocrVariants('あい'), isNot(contains('あい')));
+    // Only one character changes per variant.
+    for (final v in ocrVariants('はつ')) {
+      expect([
+        for (var i = 0; i < 2; i++)
+          if (v[i] != 'はつ'[i]) i,
+      ], hasLength(1));
+    }
+    expect(ocrVariants('森'), isEmpty);
+  });
+
   test('empty', () {
     expect(joinPieces(const []), '');
     expect(cleanOcrText('  \n '), '');

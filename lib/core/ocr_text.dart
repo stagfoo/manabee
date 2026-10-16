@@ -211,3 +211,88 @@ List<List<Glyph>> dropFurigana(List<List<Glyph>> lines) {
       if (_medianSize(l) >= median * 0.6) l,
   ];
 }
+
+/// Characters OCR confuses with each other on manga lettering: the voicing
+/// marks (は ば ぱ — two dots and a circle are a few pixels apart), small
+/// and full-size kana (っ つ), and katakana that are drawn exactly like a
+/// kanji (ロ 口, カ 力, エ 工).
+const List<String> _confusable = [
+  'かが',
+  'きぎ',
+  'くぐ',
+  'けげ',
+  'こご',
+  'さざ',
+  'しじ',
+  'すず',
+  'せぜ',
+  'そぞ',
+  'ただ',
+  'ちぢ',
+  'つづっ',
+  'てで',
+  'とど',
+  'はばぱ',
+  'ひびぴ',
+  'ふぶぷ',
+  'へべぺ',
+  'ほぼぽ',
+  'あぁ',
+  'いぃ',
+  'うぅ',
+  'えぇ',
+  'おぉ',
+  'やゃ',
+  'ゆゅ',
+  'よょ',
+  'わゎ',
+  'カガ力',
+  'キギ',
+  'クグ',
+  'ケゲ',
+  'コゴ',
+  'サザ',
+  'シジ',
+  'スズ',
+  'セゼ',
+  'ソゾ',
+  'タダ夕',
+  'チヂ',
+  'ツヅッ',
+  'テデ',
+  'トド',
+  'ハバパ八',
+  'ヒビピ',
+  'フブプ',
+  'ヘベペへ',
+  'ホボポ',
+  'アァ',
+  'イィ',
+  'ウゥ',
+  'エェ工',
+  'オォ',
+  'ヤャ',
+  'ユュ',
+  'ヨョ',
+  'ロ口',
+  'ニ二',
+  'ー一',
+];
+
+/// [text] with any one character swapped for one OCR commonly mistakes it
+/// for — every such single swap, nearest the end first (where a longest
+/// match is decided). いっばい gives いっぱい among others.
+List<String> ocrVariants(String text) {
+  final chars = text.runes.map(String.fromCharCode).toList();
+  final out = <String>[];
+  for (var i = chars.length - 1; i >= 0; i--) {
+    for (final group in _confusable) {
+      if (!group.contains(chars[i])) continue;
+      for (final alt in group.runes.map(String.fromCharCode)) {
+        if (alt == chars[i]) continue;
+        out.add([...chars.sublist(0, i), alt, ...chars.sublist(i + 1)].join());
+      }
+    }
+  }
+  return out;
+}

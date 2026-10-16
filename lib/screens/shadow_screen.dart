@@ -1,8 +1,6 @@
 /// Shadowing: hear it, say it, compare, grade yourself.
 ///
-/// Each card plays the phone's Japanese voice — the sentence the word was
-/// found in when there is one, since shadowing works on whole phrases,
-/// otherwise the word. Tap the mic to record yourself, then play yours and
+/// Each card plays the phone's Japanese voice saying the word. Tap the mic to record yourself, then play yours and
 /// the native one as often as you like, and grade it with Again / Hard /
 /// Good / Easy. Speaking has its own spaced-repetition schedule
 /// (Word.speaking), apart from flash cards: being able to say a word is a
@@ -21,14 +19,14 @@ import '../widgets/common.dart';
 import '../widgets/confetti.dart';
 import '../widgets/srs_widgets.dart';
 
-/// What gets shadowed for [w]: its sentence if it really contains the
-/// word, otherwise the word (read in kana, so the voice can't guess a
-/// kanji wrong).
+/// What gets shadowed for [w]: the word, read in kana so the voice can't
+/// guess a kanji wrong.
+///
+/// Only the word, never the bubble it came from: bubble text comes from
+/// OCR or is typed by hand, and nothing has checked it — shadowing a
+/// misread sentence would drill the mistake.
 String shadowText(Word w) {
   final e = w.entry;
-  if (findInSentence(e, w.context, surface: w.surface) != null) {
-    return w.context;
-  }
   return e.reading.isEmpty ? e.word : e.reading;
 }
 
@@ -183,8 +181,6 @@ class _ShadowScreenState extends State<ShadowScreen> {
 
   Widget _card(Word word) {
     final e = word.entry;
-    final text = shadowText(word);
-    final isSentence = text == word.context && word.context.isNotEmpty;
     final recorded = _recordedFor == word.id;
     final now = DateTime.now();
     return Column(
@@ -196,23 +192,13 @@ class _ShadowScreenState extends State<ShadowScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    isSentence ? 'SAY THE SENTENCE' : 'SAY THE WORD',
-                    style: T.monoSm,
-                  ),
+                  Text('SAY THE WORD', style: T.monoSm),
                   const SizedBox(height: 16),
-                  Text(
-                    isSentence ? text : e.word,
-                    textAlign: TextAlign.center,
-                    style: isSentence ? Jp.sentence : Jp.word,
-                  ),
-                  if (!isSentence && e.hasKanji)
-                    Text(e.reading, style: Jp.reading),
+                  Text(e.word, textAlign: TextAlign.center, style: Jp.word),
+                  if (e.hasKanji) Text(e.reading, style: Jp.reading),
                   const SizedBox(height: 12),
                   Text(
-                    isSentence
-                        ? '${e.word} · ${e.shortMeaning}'
-                        : e.shortMeaning,
+                    e.shortMeaning,
                     textAlign: TextAlign.center,
                     style: T.bodyMd.copyWith(color: C.textDim),
                   ),

@@ -62,6 +62,19 @@ void main() {
     },
   );
 
+  test('an OCR mix-up is read as the word it should be', () async {
+    // The bubble as OCR read it: ば where the page has ぱ.
+    const text = '人がいっばい居る';
+    final r = (await scanWord(text, 2, dict.lookup))!;
+    expect(r.surfaceOf(text), 'いっばい');
+    expect(r.corrected, 'いっぱい');
+    expect(r.entries.first.word, 'いっぱい');
+    // Correct text is never "corrected".
+    final ok = (await scanWord('人がいっぱい居る', 2, dict.lookup))!;
+    expect(ok.corrected, isNull);
+    expect(ok.surfaceOf('人がいっぱい居る'), 'いっぱい');
+  });
+
   test('tapping through the yotsuba bubble', () async {
     const text = 'とーちゃん ここ家がいっぱいあるな！';
     Future<String> at(int i) async {
@@ -131,6 +144,11 @@ void main() {
 
     test('a typo is flagged', () async {
       expect(await check('きのう、ごはんをたべまたです。'), contains(startsWith('notAWord:')));
+    });
+
+    test('a one-character typo gets a suggestion', () async {
+      final findings = await checkJapanese('人がいっばいいる。', dict.lookup);
+      expect(findings.map((f) => f.message), contains(contains('「いっぱい」')));
     });
 
     test('a doubled particle', () async {
