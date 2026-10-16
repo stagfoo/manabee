@@ -75,6 +75,26 @@ void main() {
     expect(ok.surfaceOf('人がいっぱい居る'), 'いっぱい');
   });
 
+  test('the last word of a sentence: verbs first', () async {
+    // Out of context, かえる is a frog first and はる is spring.
+    expect((await dict.lookup('かえる')).first.shortMeaning, 'frog');
+    expect((await dict.lookup('はる')).first.word, '春');
+    // At the end of a sentence, the verbs come first — nothing is dropped.
+    final kaeru = predicatesFirst(await dict.lookup('かえる'));
+    expect(kaeru.first.word, '帰る');
+    expect(kaeru.map((e) => e.shortMeaning), contains('frog'));
+    expect(predicatesFirst(await dict.lookup('はる')).first.word, '張る');
+  });
+
+  test('what counts as the end of a sentence', () {
+    const text = 'いえにかえるよ！またあした。';
+    expect(endsSentence(text, 6), isTrue); // かえる, then よ！
+    expect(endsSentence(text, 3), isFalse); // いえに — more follows
+    expect(endsSentence('人がいっぱい居るな！', 9), isTrue);
+    expect(endsSentence('居るのは', 2), isFalse); // の then は: not the end
+    expect(endsSentence('はる', 2), isTrue);
+  });
+
   test('tapping through the yotsuba bubble', () async {
     const text = 'とーちゃん ここ家がいっぱいあるな！';
     Future<String> at(int i) async {

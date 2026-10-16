@@ -199,7 +199,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _anchor = null;
         _span = (b.id, start, end);
       });
-      await _lookup(b.source.substring(start, end));
+      await _lookup(
+        b.source.substring(start, end),
+        sentenceEnd: endsSentence(b.source, end),
+      );
       return;
     }
     await _scan(b, i);
@@ -231,7 +234,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _span = (b.id, r.start, r.end);
       _surface = r.surfaceOf(b.source);
       _query.text = _surface;
-      _results = r.entries;
+      // The last word of a sentence is nearly always its verb: かえる
+      // there is 帰る before 蛙.
+      _results = endsSentence(b.source, r.end)
+          ? predicatesFirst(r.entries)
+          : r.entries;
       _selected = 0;
       _form = r.form;
       _corrected = r.corrected;
@@ -239,7 +246,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _openSheet();
   }
 
-  Future<void> _lookup(String q) async {
+  /// [sentenceEnd]: the text is the last word of its sentence, so verbs
+  /// and adjectives are listed first.
+  Future<void> _lookup(String q, {bool sentenceEnd = false}) async {
     // Looked up the way the dictionary knows it: きまーす as きます, and
     // ひーすっかり as すっかり (ひー is an exclamation, not a word).
     final pieces = await resolveStretches(q.trim(), _isWord);
@@ -287,7 +296,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       }
       if (!mounted || _query.text.trim() != query) return;
       setState(() {
-        _results = results;
+        _results = sentenceEnd ? predicatesFirst(results) : results;
         _selected = 0;
         _form = form;
         _corrected = corrected;
@@ -1110,7 +1119,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     _anchor = null;
                     _span = (b.id, start, end);
                   });
-                  _lookup(b.source.substring(start, end));
+                  _lookup(
+                    b.source.substring(start, end),
+                    sentenceEnd: endsSentence(b.source, end),
+                  );
                 },
               ),
             ),

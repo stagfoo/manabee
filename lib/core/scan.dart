@@ -346,3 +346,70 @@ Future<int?> _particleAt(
   }
   return null;
 }
+
+/// Particles that can follow a sentence's last word: 行くよ, 居るな, 何か.
+const _sentenceEndParticles = [
+  'よね',
+  'ねえ',
+  'かな',
+  'よ',
+  'ね',
+  'な',
+  'か',
+  'わ',
+  'ぞ',
+  'ぜ',
+  'さ',
+  'の',
+];
+
+final RegExp _sentenceBreak = RegExp(r'[。！？!?\n]');
+
+/// Whether a word ending at [end] is the last in its sentence: only
+/// sentence-ending particles, punctuation or spaces follow it before the
+/// sentence ends.
+bool endsSentence(String text, int end) {
+  if (end > text.length) return false;
+  var rest = text.substring(end);
+  final stop = rest.indexOf(_sentenceBreak);
+  if (stop >= 0) rest = rest.substring(0, stop);
+  rest = rest.replaceAll(RegExp(r'[\s、,…・〜～ー!！?？」』)）]'), '');
+  var stripped = true;
+  while (stripped && rest.isNotEmpty) {
+    stripped = false;
+    for (final p in _sentenceEndParticles) {
+      if (rest.startsWith(p)) {
+        rest = rest.substring(p.length);
+        stripped = true;
+        break;
+      }
+    }
+  }
+  return rest.isEmpty;
+}
+
+/// [entries] with verbs first, then い-adjectives, then the rest, each
+/// group in its original order — for the last word of a sentence, which
+/// in Japanese is nearly always the verb (or an adjective): かえる at the
+/// end of a sentence is 帰る before 蛙. Sorted, not filtered: nothing is
+/// lost if the guess is wrong.
+List<Entry> predicatesFirst(List<Entry> entries) {
+  int rank(Entry e) {
+    final pos = e.senses.isEmpty
+        ? const <String>[]
+        : e.senses.first.partsOfSpeech;
+    // Auxiliaries (the はる of 行きはる) are tagged as verbs too, but are
+    // never the word someone tapped.
+    if (pos.any((p) => p.contains('auxiliary'))) return 2;
+    if (pos.any((p) => p.contains('verb') && !p.contains('adverb'))) return 0;
+    if (pos.any((p) => p.contains('adjective (keiyoushi)'))) return 1;
+    return 2;
+  }
+
+  final indexed = [for (var i = 0; i < entries.length; i++) (i, entries[i])];
+  indexed.sort((a, b) {
+    final r = rank(a.$2).compareTo(rank(b.$2));
+    return r != 0 ? r : a.$1.compareTo(b.$1);
+  });
+  return [for (final e in indexed) e.$2];
+}

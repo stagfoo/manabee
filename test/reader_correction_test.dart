@@ -102,6 +102,27 @@ void main() {
     expect(highlighted(tester), '人がいっぱい');
     await lib.save();
   });
+
+  testWidgets('the last word of a bubble is looked up verbs first', (
+    tester,
+  ) async {
+    await open(tester, 'いえにかえるよ！');
+    await tester.tap(bubbleChar('か'));
+    await settle(tester);
+    expect(highlighted(tester), 'かえる');
+    expect(find.textContaining('to return'), findsWidgets);
+    expect(find.text('frog'), findsNothing);
+    await lib.save();
+  });
+
+  testWidgets('mid-sentence, the usual order stands', (tester) async {
+    await open(tester, 'かえるがいる');
+    await tester.tap(bubbleChar('か'));
+    await settle(tester);
+    expect(highlighted(tester), 'かえる');
+    expect(find.text('frog'), findsWidgets);
+    await lib.save();
+  });
 }
 
 /// A character of the bubble's text — not the same character in the search
