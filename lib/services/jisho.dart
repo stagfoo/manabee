@@ -89,6 +89,11 @@ List<Entry> parseJisho(String body) {
 }
 
 class Jisho implements Dictionary {
+  /// Jisho's search can't list a level in one go; the offline dictionary
+  /// does that.
+  @override
+  Future<List<Entry>> jlptWords(String level) async => const [];
+
   Jisho({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;

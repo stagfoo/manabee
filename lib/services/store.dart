@@ -177,6 +177,36 @@ class Library extends ChangeNotifier {
     return m;
   }
 
+  /// The commonplace book for JLPT [level], filled with [entries]. Made
+  /// the first time; importing again only adds what's missing, so nothing
+  /// already studied is reset.
+  Manga addJlptPack(String level, List<Entry> entries) {
+    final id = 'jlpt-$level';
+    final existing = mangas.where((m) => m.id == id);
+    final book = existing.isNotEmpty
+        ? existing.first
+        : Manga(id: id, title: 'JLPT $level', commonplace: true);
+    if (existing.isEmpty) mangas.add(book);
+    final have = {for (final w in words) w.id};
+    final start = DateTime.now();
+    for (final (i, e) in entries.indexed) {
+      final wid = Word.idFor(id, e);
+      if (!have.add(wid)) continue;
+      // A microsecond apart, so "the order they were saved" — which the
+      // focus set moves through — is the pack's order.
+      words.add(
+        Word(
+          id: wid,
+          mangaId: id,
+          entry: e,
+          added: start.add(Duration(microseconds: i)),
+        ),
+      );
+    }
+    changed();
+    return book;
+  }
+
   void upsertManga(Manga m) {
     final i = mangas.indexWhere((x) => x.id == m.id);
     if (i < 0) {

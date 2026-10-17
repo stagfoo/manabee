@@ -8,6 +8,9 @@ import 'package:manabee/services/store.dart';
 /// Answers like the real one would for the days of the week, in either
 /// Japanese or English.
 class FakeDictionary implements Dictionary {
+  @override
+  Future<List<Entry>> jlptWords(String level) async => const [];
+
   static const days = {'月曜日': ('げつようび', 'Monday'), '火曜日': ('かようび', 'Tuesday')};
 
   @override
@@ -60,6 +63,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Commonplace book'));
     await tester.pumpAndSettle();
+    // Offered alongside the JLPT packs.
+    expect(find.text('JLPT N5'), findsOneWidget);
+    await tester.tap(find.text('Empty commonplace book'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Days of the week');
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
@@ -99,5 +106,25 @@ void main() {
       findsOneWidget,
     );
     await lib.save();
+  });
+
+  test('a JLPT pack is a book; importing again only adds what is missing', () {
+    final lib = Library(MemoryStorage());
+    const a = Entry(word: '食べる', reading: 'たべる', senses: [], jlpt: 'N5');
+    const b = Entry(word: '学校', reading: 'がっこう', senses: [], jlpt: 'N5');
+    final book = lib.addJlptPack('N5', [a]);
+    expect(book.title, 'JLPT N5');
+    expect(book.commonplace, isTrue);
+    final w = lib.wordsFor(book.id).single;
+    w.focus = true;
+    lib.addJlptPack('N5', [a, b]);
+    expect(lib.mangas.where((m) => m.id == book.id), hasLength(1));
+    expect(lib.wordsFor(book.id).map((w) => w.entry.word), ['食べる', '学校']);
+    // What was being studied is untouched.
+    expect(lib.wordsFor(book.id).first.focus, isTrue);
+    // The focus set moves through it in the pack's order.
+    lib.wordsFor(book.id).first.focus = false;
+    lib.focusNext(mangaId: book.id, count: 1);
+    expect(lib.wordsFor(kFocusDeck).single.entry.word, '食べる');
   });
 }

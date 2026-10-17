@@ -13,7 +13,82 @@ import 'words_screen.dart';
 class CollectionsScreen extends StatelessWidget {
   const CollectionsScreen({super.key});
 
+  /// A new book: an empty one of your own, or a JLPT level's words.
   Future<void> _newBook(BuildContext context) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_note_rounded, color: C.lime),
+                title: const Text('Empty commonplace book'),
+                subtitle: const Text('Add words yourself from the dictionary'),
+                onTap: () => Navigator.pop(context, ''),
+              ),
+              const Divider(color: C.ghostBorder),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('JLPT PACKS', style: T.monoSm),
+                ),
+              ),
+              for (final (level, about) in _levels)
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: C.elevated,
+                    child: Text(level, style: T.monoSm.copyWith(color: C.lime)),
+                  ),
+                  title: Text('JLPT $level'),
+                  subtitle: Text(about),
+                  onTap: () => Navigator.pop(context, level),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    if (choice.isEmpty) return _emptyBook(context);
+    await _pack(context, choice);
+  }
+
+  static const _levels = [
+    ('N5', 'The basics — about 900 words'),
+    ('N4', 'About 800 words'),
+    ('N3', 'About 2,400 words'),
+    ('N2', 'About 1,800 words'),
+    ('N1', 'About 2,800 words'),
+  ];
+
+  Future<void> _pack(BuildContext context, String level) async {
+    final lib = AppScope.read(context);
+    final dictionary = AppScope.dictionaryOf(context);
+    final entries = await dictionary.jlptWords(level);
+    if (!context.mounted) return;
+    if (entries.isEmpty) {
+      toast(context, 'No $level words found in the dictionary.');
+      return;
+    }
+    final before = lib.wordsFor('jlpt-$level').length;
+    final book = lib.addJlptPack(level, entries);
+    final added = lib.wordsFor(book.id).length - before;
+    toast(
+      context,
+      added == 0
+          ? 'JLPT $level is already complete.'
+          : 'Added $added $level words. Pick some for focus to study them.',
+    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => WordsScreen(mangaId: book.id)));
+  }
+
+  Future<void> _emptyBook(BuildContext context) async {
     final title = await promptText(
       context,
       title: 'New commonplace book',
@@ -97,7 +172,7 @@ class _NewBookTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Your own word list, from the dictionary',
+                  'Your own word list, or a JLPT pack',
                   textAlign: TextAlign.center,
                   style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
                 ),

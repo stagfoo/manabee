@@ -95,6 +95,23 @@ void main() {
     expect(endsSentence('はる', 2), isTrue);
   });
 
+  test('a JLPT level, as a pack', () async {
+    final n5 = await dict.jlptWords('N5');
+    expect(n5.length, greaterThan(800));
+    expect(n5.every((e) => e.jlpt == 'N5'), isTrue);
+    final words = n5.map((e) => e.word).toSet();
+    expect(words, containsAll(['食べる', '学校', '月曜日']));
+    // Shown as usually written: ここ, not 此処.
+    expect(words, contains('ここ'));
+    expect(words, isNot(contains('此処')));
+    // Common words first.
+    final firstRare = n5.indexWhere((e) => !e.common);
+    if (firstRare >= 0) {
+      expect(n5.skip(firstRare).every((e) => !e.common), isTrue);
+    }
+    expect(await dict.jlptWords('N9'), isEmpty);
+  });
+
   test('tapping through the yotsuba bubble', () async {
     const text = 'とーちゃん ここ家がいっぱいあるな！';
     Future<String> at(int i) async {

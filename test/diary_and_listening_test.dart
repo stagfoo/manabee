@@ -12,6 +12,9 @@ import 'package:manabee/services/store.dart';
 
 /// A small dictionary that knows a particle from a noun.
 class FakeDictionary implements Dictionary {
+  @override
+  Future<List<Entry>> jlptWords(String level) async => const [];
+
   static const _words = {
     '私': ('わたし', 'I', 'pronoun'),
     '学生': ('がくせい', 'student', 'noun'),

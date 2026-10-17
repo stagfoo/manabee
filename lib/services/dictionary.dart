@@ -22,6 +22,10 @@ import 'jisho.dart';
 
 abstract class Dictionary {
   Future<List<Entry>> lookup(String query);
+
+  /// Every word tagged with JLPT [level] ("N5"…"N1"), common words first.
+  /// Empty where there's no offline dictionary to list them from.
+  Future<List<Entry>> jlptWords(String level);
 }
 
 /// One JMdict row as an [Entry], shaped by what was looked up: a query
@@ -136,6 +140,30 @@ class LocalDictionary implements Dictionary {
     }
     return const [];
   }
+
+  @override
+  Future<List<Entry>> jlptWords(String level) async {
+    // The level lives inside each entry's JSON — a scan of the table, but
+    // one that runs once per pack imported, not per lookup.
+    final rows = await _db.rawQuery(
+      'SELECT data FROM entry WHERE data LIKE ? ORDER BY id',
+      ['%"j":"$level"%'],
+    );
+    final common = <Entry>[];
+    final rest = <Entry>[];
+    for (final r in rows) {
+      final data = r['data']! as String;
+      final j = jsonDecode(data) as Map<String, dynamic>;
+      if (j['j'] != level) continue;
+      final kanji = j['k'] as List;
+      final kana = j['r'] as List;
+      // Shown the way it's usually written: 食べる, but ここ not 此処.
+      final shown = kanji.isEmpty || j['u'] == 1 ? kana.first : kanji.first;
+      final e = entryFromRow(data, shown as String, _pos);
+      (e.common ? common : rest).add(e);
+    }
+    return [...common, ...rest];
+  }
 }
 
 /// What the app uses: Japanese to the offline dictionary, English to
@@ -153,4 +181,8 @@ class AppDictionary implements Dictionary {
     if (!containsJapanese(query)) return _jisho.lookup(query);
     return (await _local()).lookup(query);
   }
+
+  @override
+  Future<List<Entry>> jlptWords(String level) async =>
+      (await _local()).jlptWords(level);
 }
