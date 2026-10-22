@@ -63,6 +63,10 @@ class MemoryStorage implements LibraryStorage {
 /// The deck id meaning "the focus set" wherever a book id is taken.
 const String kFocusDeck = '__focus__';
 
+/// The id of the commonplace book verb forms added from a verb map go
+/// into.
+const String kVerbFormBookId = 'verb-forms';
+
 /// The id of the commonplace book diary words go into.
 const String kDiaryBookId = 'diary-words';
 
@@ -75,6 +79,10 @@ class Library extends ChangeNotifier {
 
   /// Diary entries, newest last.
   List<DiaryEntry> diary = [];
+
+  /// Grammar practice, scheduled per rule (a particle's job, a joiner),
+  /// not per question: what's learned is the rule.
+  Map<String, ReviewState> grammar = {};
   Settings settings = Settings();
   Timer? _saveTimer;
 
@@ -98,6 +106,11 @@ class Library extends ChangeNotifier {
           for (final d in j['diary'] as List? ?? const [])
             DiaryEntry.fromJson(d as Map<String, dynamic>),
         ];
+        grammar = {
+          for (final MapEntry(:key, :value)
+              in (j['grammar'] as Map<String, dynamic>? ?? const {}).entries)
+            key: ReviewState.fromJson(value as Map<String, dynamic>?),
+        };
       } catch (e) {
         // A corrupt library must not brick the app. Keep the bad file
         // aside rather than overwriting the only copy of someone's work.
@@ -117,7 +130,34 @@ class Library extends ChangeNotifier {
     'words': [for (final w in words) w.toJson()],
     'settings': settings.toJson(),
     'diary': [for (final d in diary) d.toJson()],
+    if (grammar.isNotEmpty)
+      'grammar': {
+        for (final MapEntry(:key, :value) in grammar.entries)
+          key: value.toJson(),
+      },
   };
+
+  ReviewState grammarState(String ruleId) =>
+      grammar[ruleId] ?? const ReviewState();
+
+  void gradeGrammar(String ruleId, Grade grade) {
+    grammar[ruleId] = grammarState(ruleId).answer(grade, DateTime.now());
+    changed();
+  }
+
+  /// The commonplace book that verb forms are added to, made the first
+  /// time one is.
+  Manga verbFormBook() {
+    final existing = mangas.where((m) => m.id == kVerbFormBookId);
+    if (existing.isNotEmpty) return existing.first;
+    final m = Manga(
+      id: kVerbFormBookId,
+      title: 'Verb forms',
+      commonplace: true,
+    );
+    upsertManga(m);
+    return m;
+  }
 
   /// Notifies now and saves shortly after. Dragging a bubble or paging
   /// through a chapter changes state many times a second; one write after

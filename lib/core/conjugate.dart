@@ -698,3 +698,22 @@ class _Builder {
 
 /// [v]'s forms, as a tree rooted at its dictionary form.
 VerbForm conjugate(Verb v) => _Builder(v).build();
+
+/// [f], a form of [verb], as a dictionary-style entry to study on its own
+/// card: 食べちゃった, read たべちゃった, meaning "食べる (to eat) ·
+/// te-form → completely → casual → past: ended up doing".
+Entry formEntry(VerbForm f, Entry verb) {
+  final steps = [for (final s in f.path.skip(1)) s.label].join(' → ');
+  return Entry(
+    word: f.text.written,
+    reading: f.text.reading,
+    jlpt: verb.jlpt,
+    common: verb.common,
+    senses: [
+      Sense(
+        glosses: ['${verb.word} (${verb.shortMeaning}) · $steps: ${f.meaning}'],
+        partsOfSpeech: ['verb form'],
+      ),
+    ],
+  );
+}

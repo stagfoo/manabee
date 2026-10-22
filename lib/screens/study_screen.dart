@@ -20,6 +20,7 @@ import 'shadow_screen.dart';
 import 'match_screen.dart';
 import 'quiz_screen.dart';
 import 'conjugation_screen.dart';
+import 'grammar_screen.dart';
 
 GameCard gameCardOf(Word w) => GameCard(
   id: w.id,
@@ -149,6 +150,22 @@ class _StudyScreenState extends State<StudyScreen> {
             subtitle: 'Every form of a verb, casual and polite, as a map',
             enabled: true,
             onTap: () => open(VerbListScreen(mangaId: _mangaId)),
+          ),
+          _Tile(
+            icon: Icons.join_inner_rounded,
+            title: 'Particles',
+            subtitle: 'を, に, で… — which job, decided by the verb',
+            enabled: true,
+            onTap: () =>
+                open(GrammarScreen(drill: Drill.particles, mangaId: _mangaId)),
+          ),
+          _Tile(
+            icon: Icons.link_rounded,
+            title: 'Joining words',
+            subtitle: 'から, ても, たら… — each on its own verb form',
+            enabled: true,
+            onTap: () =>
+                open(GrammarScreen(drill: Drill.joining, mangaId: _mangaId)),
           ),
           _Tile(
             icon: Icons.quiz_outlined,

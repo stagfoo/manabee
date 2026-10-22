@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import '../core/conjugate.dart';
 import '../models.dart';
 import '../services/speech.dart';
+import '../services/store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -36,6 +37,7 @@ void openConjugation(BuildContext context, Entry entry, {String onPage = ''}) {
         verb: verb,
         meaning: entry.shortMeaning,
         onPage: onPage,
+        entry: entry,
       ),
     ),
   );
@@ -47,10 +49,14 @@ class ConjugationScreen extends StatefulWidget {
     required this.verb,
     this.meaning = '',
     this.onPage = '',
+    this.entry,
   });
 
   final Verb verb;
   final String meaning;
+
+  /// The dictionary entry, for adding a form as a card.
+  final Entry? entry;
 
   /// The form the verb had where it was met: the map opens on it.
   final String onPage;
@@ -88,6 +94,33 @@ class _ConjugationScreenState extends State<ConjugationScreen> {
   Future<void> _say(VerbForm f) async {
     final problem = await Speech.instance.say(f.text.reading);
     if (problem != null && mounted) toast(context, problem);
+  }
+
+  Entry get _verbEntry =>
+      widget.entry ??
+      Entry(
+        word: widget.verb.written,
+        reading: widget.verb.reading,
+        senses: [
+          Sense(glosses: [widget.meaning]),
+        ],
+      );
+
+  bool _isAdded(VerbForm f) =>
+      AppScope.read(context).isSaved(kVerbFormBookId, formEntry(f, _verbEntry));
+
+  /// Saves [f] as its own card in the Verb forms book.
+  void _add(VerbForm f) {
+    final lib = AppScope.read(context);
+    final book = lib.verbFormBook();
+    final added = lib.saveWord(book.id, formEntry(f, _verbEntry));
+    setState(() {});
+    toast(
+      context,
+      added
+          ? 'Added ${f.text.written} to Verb forms.'
+          : '${f.text.written} is already in Verb forms.',
+    );
   }
 
   /// A form with more below it becomes the centre; one at the end of a
@@ -159,7 +192,13 @@ class _ConjugationScreenState extends State<ConjugationScreen> {
               ),
             ),
           ),
-          _Detail(form: _selected, met: _met, onSay: () => _say(_selected)),
+          _Detail(
+            form: _selected,
+            met: _met,
+            onSay: () => _say(_selected),
+            onAdd: _selected.parent == null ? null : () => _add(_selected),
+            added: _isAdded(_selected),
+          ),
           const SizedBox(height: 14),
           const _Legend(),
         ],
@@ -417,11 +456,22 @@ class _Node extends StatelessWidget {
 
 /// The focus, spelled out: what it means, how it's read, how it's made.
 class _Detail extends StatelessWidget {
-  const _Detail({required this.form, required this.met, required this.onSay});
+  const _Detail({
+    required this.form,
+    required this.met,
+    required this.onSay,
+    required this.onAdd,
+    required this.added,
+  });
 
   final VerbForm form;
   final VerbForm? met;
   final VoidCallback onSay;
+
+  /// Adds this form as a card; null for the dictionary form, which is the
+  /// word itself.
+  final VoidCallback? onAdd;
+  final bool added;
 
   @override
   Widget build(BuildContext context) {
@@ -483,10 +533,24 @@ class _Detail extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Play',
-            onPressed: onSay,
-            icon: const Icon(Icons.volume_up_rounded, color: C.lime),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Play',
+                onPressed: onSay,
+                icon: const Icon(Icons.volume_up_rounded, color: C.lime),
+              ),
+              if (onAdd != null)
+                TextButton.icon(
+                  onPressed: added ? null : onAdd,
+                  icon: Icon(
+                    added ? Icons.check_rounded : Icons.add_rounded,
+                    size: 18,
+                  ),
+                  label: Text(added ? 'Added' : 'Add'),
+                ),
+            ],
           ),
         ],
       ),
