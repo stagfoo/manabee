@@ -4,7 +4,9 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../core/conjugate.dart';
 import '../models.dart';
+import '../screens/conjugation_screen.dart';
 import '../services/speech.dart';
 import '../theme.dart';
 import 'common.dart';
@@ -58,6 +60,11 @@ class EntryDetail extends StatelessWidget {
           );
           if (problem != null && context.mounted) toast(context, problem);
         }),
+        if (Verb.fromEntry(entry) != null)
+          _Link(
+            'Conjugation map',
+            () => openConjugation(context, entry, onPage: surface),
+          ),
       ],
     );
 

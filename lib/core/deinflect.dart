@@ -117,6 +117,10 @@ const _onNegative = [
   ('れる', 'passive'),
   ('せる', 'causative'),
   ('せられる', 'causative passive'),
+  // Spoken: 書かなきゃ / 書かなくちゃ (have to), 書かん (won't).
+  ('なきゃ', 'have to (casual)'),
+  ('なくちゃ', 'have to (casual)'),
+  ('ん', 'negative (blunt)'),
 ];
 
 List<_Rule> _buildRules() {
@@ -140,6 +144,9 @@ List<_Rule> _buildRules() {
     ('なかった', 'past negative'),
     ('なくて', 'negative te-form'),
     ('なければ', 'negative conditional'),
+    ('なきゃ', 'have to (casual)'),
+    ('なくちゃ', 'have to (casual)'),
+    ('ん', 'negative (blunt)'),
     ('られる', 'potential / passive'),
     ('れる', 'potential (colloquial)'),
     ('させる', 'causative'),
@@ -162,6 +169,9 @@ List<_Rule> _buildRules() {
     ('しません', 'polite negative'),
     ('しない', 'negative'),
     ('しなかった', 'past negative'),
+    ('しなきゃ', 'have to (casual)'),
+    ('しなくちゃ', 'have to (casual)'),
+    ('せん', 'negative (blunt)'),
     ('した', 'past'),
     ('したい', 'want to'),
     ('しよう', 'volitional'),
@@ -175,11 +185,37 @@ List<_Rule> _buildRules() {
     add(from, 'する', why, _Kind.dictionary);
   }
   add('して', 'する', 'te-form', _Kind.dictionary, te: true);
+  // Everything a masu-stem takes, on する's し and くる's き.
+  for (final (end, why) in _onStem) {
+    add('し$end', 'する', why, _Kind.dictionary);
+    add('き$end', 'くる', why, _Kind.dictionary);
+  }
+  for (final (from, to, why) in [
+    ('したり', 'する', 'tari'),
+    ('させられる', 'する', 'causative passive'),
+    ('しなければ', 'する', 'negative conditional'),
+    ('しなくて', 'する', 'negative te-form'),
+    ('きたら', 'くる', 'conditional (tara)'),
+    ('きたり', 'くる', 'tari'),
+    ('きたい', 'くる', 'want to'),
+    ('こさせる', 'くる', 'causative'),
+    ('こなければ', 'くる', 'negative conditional'),
+    ('こなくて', 'くる', 'negative te-form'),
+    ('くれば', 'くる', 'conditional'),
+    ('これる', 'くる', 'potential (colloquial)'),
+    // 来 is read こ here, but written it looks like nothing else.
+    ('来い', '来る', 'command'),
+  ]) {
+    add(from, to, why, _Kind.dictionary);
+  }
   for (final (from, why) in [
     ('きます', 'polite'),
     ('きました', 'polite past'),
     ('こない', 'negative'),
     ('こなかった', 'past negative'),
+    ('こなきゃ', 'have to (casual)'),
+    ('こなくちゃ', 'have to (casual)'),
+    ('こん', 'negative (blunt)'),
     ('きた', 'past'),
     ('こられる', 'potential / passive'),
     ('こよう', 'volitional'),
@@ -207,9 +243,28 @@ List<_Rule> _buildRules() {
     add('$taら', u, 'conditional (tara)', _Kind.dictionary);
     add('$taり', u, 'tari', _Kind.dictionary);
   }
+  // いらっしゃる, なさる, くださる, おっしゃる: い where other る-verbs
+  // have り (くださいます), and a command that is that stem (ください).
+  // The command only on those endings: a bare い → る would read 高い as
+  // a verb.
+  for (final (end, why) in _onStem) {
+    add('い$end', 'る', why, _Kind.dictionary);
+  }
+  add('さい', 'さる', 'command', _Kind.dictionary);
+  // 問う, 乞う: うて / うた, not って.
+  add('うて', 'う', 'te-form', _Kind.dictionary, te: true);
+  add('うた', 'う', 'past', _Kind.dictionary);
+  add('うたら', 'う', 'conditional (tara)', _Kind.dictionary);
+  add('うたり', 'う', 'tari', _Kind.dictionary);
+  // くれる's command is くれ.
+  add('くれ', 'くれる', 'command', _Kind.dictionary);
+  add('しゃい', 'しゃる', 'command', _Kind.dictionary);
+
   // 行く is the one irregular godan te-form.
   add('って', 'く', 'te-form', _Kind.dictionary, te: true);
   add('った', 'く', 'past', _Kind.dictionary);
+  add('ったら', 'く', 'conditional (tara)', _Kind.dictionary);
+  add('ったり', 'く', 'tari', _Kind.dictionary);
 
   // い-adjectives.
   for (final (from, why) in [
@@ -243,15 +298,36 @@ List<_Rule> _buildRules() {
     ('ておく', 'て', 'in advance'),
     ('とく', 'て', 'in advance'),
     ('てみる', 'て', 'try'),
+    ('ていない', 'て', 'not …ing'),
+    ('てない', 'て', 'not …ing'),
+    ('てもいい', 'て', 'may'),
+    ('てはいけない', 'て', 'must not'),
+    ('ちゃだめ', 'て', 'must not'),
+    ('ちゃいけない', 'て', 'must not'),
     ('てあげる', 'て', 'for someone'),
     ('てもらう', 'て', 'have done'),
     ('でいる', 'で', 'progressive'),
     ('でる', 'で', 'progressive'),
     ('でいた', 'で', 'was …ing'),
+    ('でた', 'で', 'was …ing'),
+    ('でもいい', 'で', 'may'),
+    ('ではいけない', 'で', 'must not'),
+    ('じゃだめ', 'で', 'must not'),
+    ('じゃいけない', 'で', 'must not'),
+    ('どく', 'で', 'in advance'),
+    ('でおく', 'で', 'in advance'),
     ('じゃう', 'で', 'completely / regrettably'),
     ('じゃった', 'で', 'completely / regrettably'),
   ]) {
     rules.add(_Rule(from, to, why, _Kind.teForm));
+    // 読んで takes で, and so does everything built on it: 読んでしまう,
+    // 読んでみる. (The contractions ちゃう/じゃう are listed separately.)
+    if (from.startsWith('て') && to == 'て') {
+      final de = 'で${from.substring(1)}';
+      if (!rules.any((r) => r.from == de && r.yields == _Kind.teForm)) {
+        rules.add(_Rule(de, 'で', why, _Kind.teForm));
+      }
+    }
   }
   return rules;
 }

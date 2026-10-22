@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manabee/main.dart';
 import 'package:manabee/models.dart';
+import 'package:manabee/screens/conjugation_screen.dart';
 import 'package:manabee/screens/reader_screen.dart';
 import 'package:manabee/services/dictionary.dart';
 import 'package:manabee/services/store.dart';
@@ -57,16 +59,32 @@ void main() {
     await settle(tester);
   }
 
-  String highlighted(WidgetTester tester) => tester
-      .widgetList<Text>(find.byType(Text))
-      .where(
-        (t) =>
-            t.style?.color == C.onLime &&
-            t.style?.fontSize == 20 &&
-            t.data?.length == 1,
-      )
-      .map((t) => t.data)
-      .join();
+  /// The bubble's highlighted characters — scrolling the sheet to the
+  /// bubble first, since a long entry can push it out of view.
+  Future<String> highlighted(WidgetTester tester) async {
+    final sheet = find
+        .descendant(
+          of: find.byType(DraggableScrollableSheet),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(
+      find.text('PANEL CONTEXT'),
+      200,
+      scrollable: sheet,
+    );
+    await tester.pump();
+    return tester
+        .widgetList<Text>(find.byType(Text))
+        .where(
+          (t) =>
+              t.style?.color == C.onLime &&
+              t.style?.fontSize == 20 &&
+              t.data?.length == 1,
+        )
+        .map((t) => t.data)
+        .join();
+  }
 
   testWidgets('いっばい is read as いっぱい, and the text can be fixed', (
     tester,
@@ -74,13 +92,15 @@ void main() {
     await open(tester, '人がいっばい居る');
     await tester.tap(find.text('い').first);
     await settle(tester);
-    expect(highlighted(tester), 'いっばい');
+    expect(await highlighted(tester), 'いっばい');
     expect(find.textContaining('Read as', findRichText: true), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Fix text'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Fix text'));
     await settle(tester);
     expect(bubble.source, '人がいっぱい居る');
-    expect(highlighted(tester), 'いっぱい');
+    expect(await highlighted(tester), 'いっぱい');
     await lib.save();
   });
 
@@ -89,7 +109,7 @@ void main() {
     // Tap 人, then drag from it across to the end of いっぱい.
     await tester.tap(find.text('人'));
     await settle(tester);
-    expect(highlighted(tester), '人');
+    expect(await highlighted(tester), '人');
     final from = tester.getCenter(bubbleChar('人'));
     final to = tester.getCenter(bubbleChar('ぱ'));
     final gesture = await tester.startGesture(from);
@@ -99,7 +119,7 @@ void main() {
     await tester.pump();
     await gesture.up();
     await settle(tester);
-    expect(highlighted(tester), '人がいっぱい');
+    expect(await highlighted(tester), '人がいっぱい');
     await lib.save();
   });
 
@@ -109,7 +129,7 @@ void main() {
     await open(tester, 'いえにかえるよ！');
     await tester.tap(bubbleChar('か'));
     await settle(tester);
-    expect(highlighted(tester), 'かえる');
+    expect(await highlighted(tester), 'かえる');
     expect(find.textContaining('to return'), findsWidgets);
     expect(find.text('frog'), findsNothing);
     await lib.save();
@@ -119,8 +139,26 @@ void main() {
     await open(tester, 'かえるがいる');
     await tester.tap(bubbleChar('か'));
     await settle(tester);
-    expect(highlighted(tester), 'かえる');
+    expect(await highlighted(tester), 'かえる');
     expect(find.text('frog'), findsWidgets);
+    await lib.save();
+  });
+
+  testWidgets('a verb on the page opens its map, on that form', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('flutter_tts'),
+      (call) async => call.method == 'getLanguages' ? ['ja-JP'] : 1,
+    );
+    await open(tester, 'あそべるよ');
+    await tester.tap(bubbleChar('あ'));
+    await settle(tester);
+    final button = find.text('Conjugation map: how あそべる is made');
+    await tester.ensureVisible(button);
+    await settle(tester);
+    await tester.tap(button);
+    await settle(tester);
+    expect(find.byType(ConjugationScreen), findsOneWidget);
+    expect(find.text('POTENTIAL · ON THE PAGE'), findsOneWidget);
     await lib.save();
   });
 }

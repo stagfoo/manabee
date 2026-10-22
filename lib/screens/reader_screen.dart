@@ -23,6 +23,7 @@ import 'package:flutter/services.dart';
 import '../core/deinflect.dart';
 import '../core/geometry.dart';
 import '../core/ocr_text.dart';
+import '../core/conjugate.dart';
 import '../core/scan.dart';
 import '../core/kana.dart';
 import '../core/segmenter.dart';
@@ -32,6 +33,7 @@ import '../services/ocr.dart';
 import '../services/speech.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'conjugation_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({
@@ -986,6 +988,28 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ],
           ),
           style: T.monoBold.copyWith(color: C.textDim, fontSize: 12),
+        ),
+      ),
+    // A verb: its conjugation map, opened on the form met on the page.
+    if (Verb.fromEntry(e) != null)
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          onPressed: () => openConjugation(
+            context,
+            e,
+            onPage: _form != null && _exact(e, _form!.term)
+                ? _form!.wordOnPage(_surface)
+                : '',
+          ),
+          icon: const Icon(Icons.hub_outlined, size: 20),
+          label: Text(
+            _form != null && _exact(e, _form!.term)
+                ? 'Conjugation map: how ${_form!.wordOnPage(_surface)} is made'
+                : 'Conjugation map',
+            style: T.pill.copyWith(color: C.lime),
+          ),
         ),
       ),
     // For the piece OCR missed: look it up, then drop it into the bubble.

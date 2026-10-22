@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:manabee/core/diary_check.dart';
+import 'package:manabee/core/conjugate.dart';
+import 'package:manabee/core/deinflect.dart';
 import 'package:manabee/core/scan.dart';
 import 'package:manabee/services/dictionary.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -110,6 +112,46 @@ void main() {
       expect(n5.skip(firstRare).every((e) => !e.common), isTrue);
     }
     expect(await dict.jlptWords('N9'), isEmpty);
+  });
+
+  test('real dictionary verbs conjugate, and every form traces back', () async {
+    Future<Verb?> verb(String w) async =>
+        Verb.fromEntry((await dict.lookup(w)).first);
+    expect((await verb('する'))!.group, VerbGroup.suru);
+    expect((await verb('来る'))!.group, VerbGroup.kuru);
+    expect((await verb('行く'))!.special, 'iku');
+    expect((await verb('ある'))!.special, 'aru');
+    expect((await verb('食べる'))!.group, VerbGroup.ichidan);
+    final study = (await verb('勉強'))!;
+    expect(study.written, '勉強する');
+    expect(conjugate(study).find('勉強できる'), isNotNull);
+    expect(await verb('学校'), isNull);
+
+    // Every N5 and N4 verb, every form, written and read.
+    var verbs = 0;
+    final missing = <String>[];
+    for (final level in ['N5', 'N4']) {
+      for (final e in await dict.jlptWords(level)) {
+        final v = Verb.fromEntry(e);
+        if (v == null || v.written.endsWith('する') && v.written != 'する') {
+          continue;
+        }
+        verbs++;
+        for (final f in conjugate(v).all.skip(1)) {
+          // ある's negative is ない, its own dictionary word: a rule taking
+          // ない back to ある would attach ある to every negative.
+          if (v.special == 'aru' && f.id.startsWith('negative')) continue;
+          for (final s in {f.text.written, f.text.reading}) {
+            if (!deinflect(s)
+                .any((d) => d.term == v.written || d.term == v.reading)) {
+              missing.add('${v.written} ${f.id}: $s');
+            }
+          }
+        }
+      }
+    }
+    expect(verbs, greaterThan(250));
+    expect(missing, isEmpty, reason: missing.take(40).join('\n'));
   });
 
   test('tapping through the yotsuba bubble', () async {
