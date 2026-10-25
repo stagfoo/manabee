@@ -16,6 +16,7 @@ import 'flashcards_screen.dart';
 import 'focus_screen.dart';
 import 'kanji_chain_screen.dart';
 import 'listen_screen.dart';
+import 'sentence_shadow_screen.dart';
 import 'shadow_screen.dart';
 import 'match_screen.dart';
 import 'quiz_screen.dart';
@@ -248,6 +249,15 @@ class _StudyScreenState extends State<StudyScreen> {
               MaterialPageRoute(
                 builder: (_) => ShadowScreen(mangaId: _mangaId),
               ),
+            ),
+          ),
+          _Tile(
+            icon: Icons.chat_bubble_outline_rounded,
+            title: 'Sentence shadowing',
+            subtitle: 'Native sentences: your focus words, or N5 · N4 · N3',
+            enabled: true,
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(builder: (_) => const SentenceShadowScreen()),
             ),
           ),
           if (words.isEmpty)

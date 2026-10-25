@@ -108,6 +108,9 @@ class SettingsScreen extends StatelessWidget {
                   'Kanji Chain builds kanji from KanjiVG (© Ulrich Apel, '
                   'CC BY-SA 3.0) with meanings and readings from KANJIDIC '
                   '(EDRDG, CC BY-SA 4.0).\n\n'
+                  'Sentence shadowing uses sentences from Tatoeba '
+                  '(tatoeba.org), CC BY 2.0 FR — written by native '
+                  'speakers, each shown with its author and number.\n\n'
                   'Audio is your phone\'s own text-to-speech voices.\n\n'
                   'Fonts: Outfit and Space Mono, SIL Open Font Licence 1.1.\n\n'
                   'Your manga, bubbles and words never leave this device.',

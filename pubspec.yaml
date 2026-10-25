@@ -69,6 +69,8 @@ flutter:
 
   assets:
     - assets/dict/
+    # Tatoeba sentences (CC BY 2.0 FR), graded by tool/grade_sentences.dart.
+    - assets/sentences/
     - assets/kanji/
     - assets/sounds/
 

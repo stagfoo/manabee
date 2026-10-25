@@ -83,6 +83,9 @@ class Library extends ChangeNotifier {
   /// Grammar practice, scheduled per rule (a particle's job, a joiner),
   /// not per question: what's learned is the rule.
   Map<String, ReviewState> grammar = {};
+
+  /// Sentence shadowing's schedule, by sentence key ('tatoeba:1234').
+  Map<String, ReviewState> sentenceSpeaking = {};
   Settings settings = Settings();
   Timer? _saveTimer;
 
@@ -111,6 +114,12 @@ class Library extends ChangeNotifier {
               in (j['grammar'] as Map<String, dynamic>? ?? const {}).entries)
             key: ReviewState.fromJson(value as Map<String, dynamic>?),
         };
+        sentenceSpeaking = {
+          for (final MapEntry(:key, :value)
+              in (j['sentenceSpeaking'] as Map<String, dynamic>? ?? const {})
+                  .entries)
+            key: ReviewState.fromJson(value as Map<String, dynamic>?),
+        };
       } catch (e) {
         // A corrupt library must not brick the app. Keep the bad file
         // aside rather than overwriting the only copy of someone's work.
@@ -135,7 +144,27 @@ class Library extends ChangeNotifier {
         for (final MapEntry(:key, :value) in grammar.entries)
           key: value.toJson(),
       },
+    if (sentenceSpeaking.isNotEmpty)
+      'sentenceSpeaking': {
+        for (final MapEntry(:key, :value) in sentenceSpeaking.entries)
+          key: value.toJson(),
+      },
   };
+
+  void setSentenceSpeaking(String key, ReviewState state) {
+    sentenceSpeaking[key] = state;
+    changed();
+  }
+
+  /// New sentences still allowed into sentence shadowing today: the daily
+  /// new-card limit, counted on its own.
+  int newSentenceAllowanceToday([DateTime? now]) {
+    final introduced = introducedToday(
+      sentenceSpeaking.values,
+      now ?? DateTime.now(),
+    );
+    return (settings.newPerDay - introduced).clamp(0, settings.newPerDay);
+  }
 
   ReviewState grammarState(String ruleId) =>
       grammar[ruleId] ?? const ReviewState();

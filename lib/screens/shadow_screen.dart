@@ -203,7 +203,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
                     style: T.bodyMd.copyWith(color: C.textDim),
                   ),
                   const SizedBox(height: 32),
-                  _MicButton(recording: _recording, onTap: _toggleRecord),
+                  MicButton(recording: _recording, onTap: _toggleRecord),
                   const SizedBox(height: 8),
                   Text(
                     _recording
@@ -228,7 +228,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _PlayButton(
+                      child: PlayButton(
                         label: 'You',
                         icon: Icons.person_rounded,
                         onPressed: recorded && !_recording
@@ -238,7 +238,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _PlayButton(
+                      child: PlayButton(
                         label: 'Native',
                         icon: Icons.record_voice_over_rounded,
                         onPressed: _recording ? null : () => _native(word),
@@ -298,8 +298,8 @@ class _ShadowScreenState extends State<ShadowScreen> {
   }
 }
 
-class _MicButton extends StatelessWidget {
-  const _MicButton({required this.recording, required this.onTap});
+class MicButton extends StatelessWidget {
+  const MicButton({super.key, required this.recording, required this.onTap});
 
   final bool recording;
   final VoidCallback onTap;
@@ -331,8 +331,9 @@ class _MicButton extends StatelessWidget {
   );
 }
 
-class _PlayButton extends StatelessWidget {
-  const _PlayButton({
+class PlayButton extends StatelessWidget {
+  const PlayButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.onPressed,

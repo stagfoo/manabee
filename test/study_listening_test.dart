@@ -55,13 +55,7 @@ void main() {
       200,
       scrollable: page.first,
     );
-    // Off the very edge of the screen isn't tappable: bring it fully in.
-    await tester.dragUntilVisible(
-      find.text(title),
-      page.first,
-      const Offset(0, -150),
-    );
-    await tester.drag(page.first, const Offset(0, -150));
+    await tester.ensureVisible(find.text(title));
     await tester.pumpAndSettle();
     await tester.tap(find.text(title));
     await tester.pumpAndSettle();
