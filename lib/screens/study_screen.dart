@@ -71,6 +71,10 @@ class _StudyScreenState extends State<StudyScreen> {
       _mangaId = null;
     }
     final words = lib.wordsFor(_mangaId);
+    // Listening always works on the focus set when there is one — the few
+    // words being learned now — whichever deck is picked above.
+    final listenDeck = lib.focusCount > 0 ? kFocusDeck : _mangaId;
+    final listenWords = lib.wordsFor(listenDeck);
     final today = lib.dueToday(_mangaId);
     final learned = lib.learnedCount(_mangaId);
     // Manga once they've given you words; commonplace books always — you
@@ -191,35 +195,41 @@ class _StudyScreenState extends State<StudyScreen> {
               rootNavigator: true,
             ).push(MaterialPageRoute(builder: (_) => const KanjiChainScreen())),
           ),
-          const _Section(
+          _Section(
             icon: Icons.hearing_rounded,
             title: 'Listening',
-            subtitle: 'Understanding Japanese by ear',
+            subtitle: listenDeck == kFocusDeck
+                ? 'Your ${listenWords.length} focus words, by ear'
+                : 'Understanding Japanese by ear',
           ),
           _Tile(
             icon: Icons.headphones_rounded,
             title: 'Listen',
             subtitle: 'Audio playlist: Japanese, a pause, the meaning, a chime',
-            enabled: words.isNotEmpty,
+            enabled: listenWords.isNotEmpty,
             onTap: () => Navigator.of(context, rootNavigator: true).push(
               MaterialPageRoute(
-                builder: (_) => ListenScreen(mangaId: _mangaId),
+                builder: (_) => ListenScreen(mangaId: listenDeck),
               ),
             ),
           ),
           _Tile(
             icon: Icons.record_voice_over_outlined,
             title: 'Listening Quiz',
-            subtitle: 'Hear the word, pick its meaning',
-            enabled: words.length >= kMinQuizWords,
-            onTap: () => open(QuizScreen(mangaId: _mangaId, audio: true)),
+            subtitle: listenWords.length >= kMinQuizWords
+                ? 'Hear the word, pick its meaning'
+                : 'Needs $kMinQuizWords words to play',
+            enabled: listenWords.length >= kMinQuizWords,
+            onTap: () => open(QuizScreen(mangaId: listenDeck, audio: true)),
           ),
           _Tile(
             icon: Icons.volume_up_outlined,
             title: 'Listening Match',
-            subtitle: 'Tap a tile to hear it; pair it with its meaning',
-            enabled: words.length >= kMinMatchWords,
-            onTap: () => open(MatchScreen(mangaId: _mangaId, audio: true)),
+            subtitle: listenWords.length >= kMinMatchWords
+                ? 'Tap a tile to hear it; pair it with its meaning'
+                : 'Needs $kMinMatchWords words to play',
+            enabled: listenWords.length >= kMinMatchWords,
+            onTap: () => open(MatchScreen(mangaId: listenDeck, audio: true)),
           ),
           const _Section(
             icon: Icons.mic_none_rounded,
