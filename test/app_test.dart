@@ -44,8 +44,8 @@ void main() {
     await pump(tester);
     await tester.tap(find.byIcon(Icons.inventory_2_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('No flash cards yet.'), findsOneWidget);
-    expect(find.text('Writing'), findsOneWidget);
+    expect(find.text('No flash cards yet.'), findsWidgets);
+    expect(find.text('Listening'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.chat_bubble_outline_rounded).last);
     await tester.pumpAndSettle();
     // An empty Words tab offers a commonplace book to start.
@@ -79,9 +79,28 @@ void main() {
     final lib = await pump(tester, (lib) => lib.saveWord('m', wakai()));
     await tester.tap(find.byIcon(Icons.inventory_2_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Due today'), findsOneWidget);
-    expect(find.text('Study 1'), findsOneWidget);
-    await tester.tap(find.text('Study 1'));
+    // Two decks: by ear and by kanji, each with its own Study button.
+    expect(find.text('Listening cards'), findsOneWidget);
+    await tester.dragUntilVisible(
+      find.text('Reading cards'),
+      find.byType(ListView).first,
+      const Offset(0, -200),
+    );
+    expect(find.text('Study 1'), findsNWidgets(2));
+    await tester.ensureVisible(find.text('Study 1').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Study 1').last);
+    await tester.pumpAndSettle();
+    // The reading deck: the kanji on the card.
+    expect(find.text('若い'), findsOneWidget);
+    Navigator.of(tester.element(find.text('Show answer'))).pop();
+    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(
+      find.text('Listening cards'),
+      find.byType(ListView).first,
+      const Offset(0, 200),
+    );
+    await tester.tap(find.text('Study 1').first);
     await tester.pumpAndSettle();
     expect(find.text('Show answer'), findsOneWidget);
     // Full screen, above the dock.
@@ -97,8 +116,9 @@ void main() {
     nav.push(MaterialPageRoute(builder: (_) => const FlashcardsScreen()));
     await tester.pumpAndSettle();
 
-    // Question side: the word and its level, nothing that gives it away.
-    expect(find.text('若い'), findsOneWidget);
+    // A listening card: the word is said, not shown.
+    expect(find.text('若い'), findsNothing);
+    expect(find.text('What does it mean?'), findsOneWidget);
     expect(find.text('N5'), findsOneWidget);
     expect(find.text('wakai'), findsNothing);
     expect(find.text('young; youthful'), findsNothing);
@@ -145,6 +165,53 @@ void main() {
     expect(find.byType(Confetti), findsOneWidget);
     expect(find.textContaining('Congratulations'), findsOneWidget);
 
+    await lib.save();
+  });
+
+  testWidgets('reading card: kanji shown, sound held back, its own schedule', (
+    tester,
+  ) async {
+    final lib = await pump(tester, (lib) => lib.saveWord('m', wakai()));
+    final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => const FlashcardsScreen(skill: CardSkill.reading),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('若い'), findsOneWidget);
+    expect(find.text('わかい'), findsNothing);
+    // Hearing it would give the reading away.
+    expect(find.byTooltip('Say it'), findsNothing);
+
+    await tester.tap(find.text('Show answer'));
+    await tester.pumpAndSettle();
+    expect(find.text('わかい'), findsOneWidget);
+    await tester.tap(find.text('Easy'));
+    await tester.pumpAndSettle();
+    // Graded on the reading schedule; the listening card is untouched.
+    expect(lib.words.single.kanjiReview.intervalDays, kEasyIntervalDays);
+    expect(lib.words.single.review.isNew, isTrue);
+    await lib.save();
+  });
+
+  testWidgets('a kana word has no reading card', (tester) async {
+    final lib = await pump(
+      tester,
+      (lib) => lib.saveWord(
+        'm',
+        const Entry(
+          word: 'すごい',
+          reading: 'すごい',
+          senses: [
+            Sense(glosses: ['amazing']),
+          ],
+        ),
+      ),
+    );
+    expect(lib.cardsFor(null, CardSkill.listening), hasLength(1));
+    expect(lib.cardsFor(null, CardSkill.reading), isEmpty);
     await lib.save();
   });
 }

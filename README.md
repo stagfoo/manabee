@@ -44,8 +44,12 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - **Commonplace books**: word lists of your own with no pages (days of the week, a topic, words from a song). Make one from the Words tab, then add words from the dictionary in Japanese or English; added results turn mint. They study like any other deck and stay off the reading shelf
 - **JLPT packs**: the same new-book tile offers N5 to N1, each made into a commonplace book from the offline dictionary's level tags (about 900 N5 words, 800 N4, 2,400 N3, 1,800 N2, 2,800 N1 — community lists; the JLPT itself publishes none). Common words come first; **Focus next 20** works through a pack in order. Importing a level again only adds what's missing, so progress is kept
 
-**Study** — flash cards at the top, then three sections: **Writing** (Diary, Quiz, Match, Kanji Chain), **Listening** (Listen, Listening Quiz, Listening Match), **Speaking** (Shadowing)
-- **Flash cards, scheduled like Anki** (SM-2): furigana / kanji / romaji front, full entry on the back
+**Study** — four sections: **Listening** (listening cards, Listen, Listening Quiz, Listening Match), **Reading** (reading cards, Mock JLPT test, Quiz, Match, Kanji Chain), **Writing** (Diary, Verb maps, Particles, Joining words), **Speaking** (Shadowing)
+- **Two decks of flash cards, one per skill**, each on its own schedule: knowing a word by ear and reading its kanji come apart all the time, and one card for both left no honest grade for either
+  - **Listening cards**: the word is said, nothing is shown — do you know what it means? Hear it again with the speaker. Keeps the schedule from before the split
+  - **Reading cards**: the kanji is shown, nothing is said — can you read it? Only words written with kanji have one; the sound comes with the answer
+- **Mock JLPT test** (N5 · N4 · N3): the vocabulary paper's first two parts — 12 **漢字読み** (pick the reading of the underlined word) and 8 **表記** (pick how the underlined kana is written) — in native Tatoeba sentences at that level, the word underlined as conjugated (分かりません). The wrong answers are the real test's traps: a long vowel dropped or added (がこう / がっこう), a small っ lost or invented, voicing changed, ゃ made big, another reading of the same kanji (部屋 → へおく), a kanji sharing a part (仕事 → 体事), okurigana moved (入れない → 入ない), a compound swapped (事仕). None is ever a real way to read or write the word (checked against the dictionary), and a spelling with two readings (今日) is never asked. Run like the test — nothing marked until the end, a clock — then every question marked with its translation; **the words you missed go into a "Mock test misses" book as reading cards**. Past scores per level are kept. Check generated tests with `LEVEL=N5 COUNT=2 flutter test tool/mock_test_dry_run.dart`
+- **Flash cards, scheduled like Anki** (SM-2): full entry on the back
 - **Again / Hard / Good / Easy**, each button showing when the card comes back (`1m`, `10m`, `1d`, `4d`)
 - Learning steps of 1 and 10 minutes within the sitting, then day intervals that grow with each card's ease
 - A forgotten card is relearned with its interval halved, not reset
@@ -90,7 +94,7 @@ release. Or download the APK from
 | --- | --- |
 | 🏠 **Library** | Cover carousel, chapter progress, how many of the focused manga's words you've learned. Tap a cover for its chapters; the last tile imports a new manga. |
 | 💬 **Words** | One deck per manga. Each deck lists saved words (ENGLISH · ROMAJI · FURIGANA · KANJI), a dictionary search to add more, and a *Bubbles* view of every translation you've written. |
-| 🗃 **Study** | Anki-style flash cards (Again / Hard / Good / Easy, SM-2), plus a multiple-choice quiz and a pair-matching game for practice, over all words or one manga's. |
+| 🗃 **Study** | Anki-style flash cards (Again / Hard / Good / Easy, SM-2), a listening deck and a reading deck, mock JLPT tests, plus quizzes, matching games and drills for practice, over all words or one manga's. |
 
 ### Importing
 

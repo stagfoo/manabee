@@ -1,6 +1,12 @@
 /// Flash cards, laid out like jlptbenkyo's review screen and run like
 /// Anki.
 ///
+/// Two decks of them, one per skill, each with its own schedule. A
+/// listening card says the word and shows nothing: do you know what it
+/// means? A reading card shows the kanji and says nothing: can you read
+/// it? Knowing a word by ear and reading its kanji come apart all the
+/// time, and one card for both left no honest grade for either.
+///
 /// The question shows as little as possible: the word, big, under its JLPT
 /// level. Show answer keeps the question on screen and adds the answer
 /// under a rule, as Anki does — the reading, the meanings, and the bubble
@@ -24,9 +30,14 @@ import '../widgets/confetti.dart';
 import '../widgets/srs_widgets.dart';
 
 class FlashcardsScreen extends StatefulWidget {
-  const FlashcardsScreen({super.key, this.mangaId});
+  const FlashcardsScreen({
+    super.key,
+    this.mangaId,
+    this.skill = CardSkill.listening,
+  });
 
   final String? mangaId;
+  final CardSkill skill;
 
   @override
   State<FlashcardsScreen> createState() => _FlashcardsScreenState();
@@ -37,18 +48,37 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   bool _revealed = false;
   int _answered = 0;
 
+  /// The card on screen, held until it's graded. The session's idea of
+  /// "current" changes as learning cards fall due — asked afresh on every
+  /// repaint, a card could be swapped out from under you as you tapped
+  /// Show answer.
+  String? _shown;
+
   /// Repaints while waiting on a learning step, so the card appears when
   /// it's due without a tap.
   Timer? _tick;
+
+  /// The listening card last said aloud, so each is said once on arrival
+  /// rather than on every repaint.
+  String? _saidFor;
+
+  /// Why a listening card couldn't be said — no Japanese voice — shown on
+  /// the card rather than as a snackbar over the buttons on every card.
+  String? _voiceProblem;
+
+  CardSkill get _skill => widget.skill;
 
   @override
   void initState() {
     super.initState();
     final lib = AppScope.read(context);
     _session = StudySession(
-      {for (final w in lib.wordsFor(widget.mangaId)) w.id: w.review},
+      {
+        for (final w in lib.cardsFor(widget.mangaId, _skill))
+          w.id: w.card(_skill),
+      },
       DateTime.now(),
-      newLimit: lib.newAllowanceToday(),
+      newLimit: lib.newCardAllowanceToday(_skill),
     );
     _tick = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) setState(() {});
@@ -63,27 +93,30 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
 
   void _grade(String id, Grade grade) {
     final state = _session.answer(id, grade, DateTime.now());
-    AppScope.read(context).setReview(id, state);
+    AppScope.read(context).setCard(_skill, id, state);
     HapticFeedback.selectionClick();
     setState(() {
       _revealed = false;
       _answered++;
+      _shown = null;
     });
   }
 
   void _undo() {
     final undone = _session.undo();
     if (undone == null) return;
-    AppScope.read(context).setReview(undone.$1, undone.$2);
+    AppScope.read(context).setCard(_skill, undone.$1, undone.$2);
+    _saidFor = null;
     setState(() {
       _revealed = true;
       if (_answered > 0) _answered--;
+      _shown = undone.$1;
     });
   }
 
   void _moreNew() {
     final added = _session.addNew(
-      AppScope.read(context).wordsFor(widget.mangaId).map((w) => w.id),
+      AppScope.read(context).cardsFor(widget.mangaId, _skill).map((w) => w.id),
       10,
     );
     setState(() {});
@@ -93,13 +126,32 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
   @override
   Widget build(BuildContext context) {
     final lib = AppScope.library(context);
-    final byId = {for (final w in lib.wordsFor(widget.mangaId)) w.id: w};
+    final byId = {
+      for (final w in lib.cardsFor(widget.mangaId, _skill)) w.id: w,
+    };
     final now = DateTime.now();
-    final id = _session.current(now);
+    final id = _shown ??= _session.current(now);
     final word = id == null ? null : byId[id];
     final remaining =
         _session.newCount + _session.learningCount + _session.reviewCount;
     final total = _answered + remaining;
+    // A listening card is its sound: say it as it arrives.
+    if (_skill == CardSkill.listening &&
+        word != null &&
+        !_revealed &&
+        _saidFor != word.id) {
+      _saidFor = word.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final e = word.entry;
+        final problem = await Speech.instance.say(
+          e.reading.isEmpty ? e.word : e.reading,
+        );
+        if (mounted && problem != _voiceProblem) {
+          setState(() => _voiceProblem = problem);
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: C.ground,
@@ -113,7 +165,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
           onPressed: () => Navigator.maybePop(context),
         ),
         title: Text(
-          word == null ? 'Flash cards' : '$_answered / $total',
+          word == null
+              ? switch (_skill) {
+                  CardSkill.listening => 'Listening cards',
+                  CardSkill.reading => 'Reading cards',
+                }
+              : '$_answered / $total',
           style: T.headlineMd,
         ),
         actions: [
@@ -141,7 +198,9 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                   child: _Face(
                     key: ValueKey('${word.id}:$_revealed'),
                     word: word,
+                    skill: _skill,
                     revealed: _revealed,
+                    voiceProblem: _voiceProblem,
                     mangaTitle: lib.mangaById(word.mangaId)?.title,
                   ),
                 ),
@@ -156,12 +215,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                           newCards: _session.newCount,
                           learning: _session.learningCount,
                           review: _session.reviewCount,
-                          current: word.review,
+                          current: word.card(_skill),
                         ),
                         const SizedBox(height: 12),
                         _revealed
                             ? GradeRow(
-                                previews: previewAll(word.review, now),
+                                previews: previewAll(word.card(_skill), now),
                                 now: now,
                                 onGrade: (g) => _grade(word.id, g),
                               )
@@ -176,8 +235,12 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
                                           setState(() => _revealed = true),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  _SayButton(entry: word.entry),
+                                  // On a reading card the sound is the
+                                  // answer, so it waits for Show answer.
+                                  if (_skill == CardSkill.listening) ...[
+                                    const SizedBox(width: 8),
+                                    _SayButton(entry: word.entry),
+                                  ],
                                 ],
                               ),
                       ],
@@ -200,11 +263,11 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
             'Stay here and it appears on its own.',
       );
     }
-    final deck = lib.wordsFor(widget.mangaId);
-    final newLeft = deck.where((w) => w.review.isNew).length;
+    final deck = lib.cardsFor(widget.mangaId, _skill);
+    final newLeft = deck.where((w) => w.card(_skill).isNew).length;
     DateTime? nextDue;
     for (final w in deck) {
-      final d = w.review.due;
+      final d = w.card(_skill).due;
       if (d != null &&
           d.isAfter(now) &&
           (nextDue == null || d.isBefore(nextDue))) {
@@ -214,7 +277,9 @@ class _FlashcardsScreenState extends State<FlashcardsScreen> {
     final message = DoneMessage(
       icon: Icons.check_circle_outline_rounded,
       title: deck.isEmpty
-          ? 'No cards yet'
+          ? _skill == CardSkill.reading
+                ? 'No kanji words in this deck'
+                : 'No cards yet'
           : _answered > 0
           ? '$_answered reviewed'
           : 'Nothing due right now',
@@ -261,26 +326,63 @@ class _Face extends StatelessWidget {
   const _Face({
     super.key,
     required this.word,
+    required this.skill,
     required this.revealed,
+    this.voiceProblem,
     this.mangaTitle,
   });
 
   final Word word;
+  final CardSkill skill;
   final bool revealed;
+  final String? voiceProblem;
   final String? mangaTitle;
 
   @override
   Widget build(BuildContext context) {
     final e = word.entry;
+    final hidden = skill == CardSkill.listening && !revealed;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         const SizedBox(height: 16),
         Center(child: _LevelChip(e.jlpt)),
         const SizedBox(height: 16),
-        Center(
-          child: Text(e.word, style: Jp.word, textAlign: TextAlign.center),
-        ),
+        if (hidden)
+          // Nothing written: the question is the sound.
+          Center(
+            child: Column(
+              children: [
+                const SizedBox(height: 24),
+                IconButton.filledTonal(
+                  tooltip: 'Hear it again',
+                  iconSize: 56,
+                  style: IconButton.styleFrom(
+                    padding: const EdgeInsets.all(28),
+                  ),
+                  icon: const Icon(Icons.hearing_rounded),
+                  onPressed: () => _say(context, e),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'What does it mean?',
+                  style: T.bodyLg.copyWith(color: C.textDim),
+                ),
+                if (voiceProblem != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    voiceProblem!,
+                    textAlign: TextAlign.center,
+                    style: T.bodyMd.copyWith(color: C.danger),
+                  ),
+                ],
+              ],
+            ),
+          )
+        else
+          Center(
+            child: Text(e.word, style: Jp.word, textAlign: TextAlign.center),
+          ),
         if (revealed) ...[
           const SizedBox(height: 12),
           const Divider(color: C.border, thickness: 1, height: 24),

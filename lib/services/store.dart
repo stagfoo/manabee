@@ -86,6 +86,9 @@ class Library extends ChangeNotifier {
 
   /// Sentence shadowing's schedule, by sentence key ('tatoeba:1234').
   Map<String, ReviewState> sentenceSpeaking = {};
+
+  /// Every mock JLPT test taken, oldest first.
+  List<MockResult> mockResults = [];
   Settings settings = Settings();
   Timer? _saveTimer;
 
@@ -120,6 +123,10 @@ class Library extends ChangeNotifier {
                   .entries)
             key: ReviewState.fromJson(value as Map<String, dynamic>?),
         };
+        mockResults = [
+          for (final m in j['mockTests'] as List? ?? const [])
+            MockResult.fromJson(m as Map<String, dynamic>),
+        ];
       } catch (e) {
         // A corrupt library must not brick the app. Keep the bad file
         // aside rather than overwriting the only copy of someone's work.
@@ -139,6 +146,8 @@ class Library extends ChangeNotifier {
     'words': [for (final w in words) w.toJson()],
     'settings': settings.toJson(),
     'diary': [for (final d in diary) d.toJson()],
+    if (mockResults.isNotEmpty)
+      'mockTests': [for (final m in mockResults) m.toJson()],
     if (grammar.isNotEmpty)
       'grammar': {
         for (final MapEntry(:key, :value) in grammar.entries)
@@ -407,6 +416,75 @@ class Library extends ChangeNotifier {
     if (w == null) return;
     w.review = state;
     changed();
+  }
+
+  /// Writes a card's new schedule for [skill].
+  void setCard(CardSkill skill, String wordId, ReviewState state) {
+    if (skill == CardSkill.listening) return setReview(wordId, state);
+    final w = words.where((w) => w.id == wordId).firstOrNull;
+    if (w == null) return;
+    w.kanjiReview = state;
+    changed();
+  }
+
+  /// The words in [mangaId]'s deck that have a [skill] card.
+  List<Word> cardsFor(String? mangaId, CardSkill skill) => [
+    for (final w in wordsFor(mangaId))
+      if (w.hasCard(skill)) w,
+  ];
+
+  /// New [skill] cards still allowed today. Each skill gets the full
+  /// daily limit: they're separate decks, and halving the limit would
+  /// make the split a slowdown.
+  int newCardAllowanceToday(CardSkill skill, [DateTime? now]) {
+    if (skill == CardSkill.listening) return newAllowanceToday(now);
+    final introduced = introducedToday(
+      words.map((w) => w.kanjiReview),
+      now ?? DateTime.now(),
+    );
+    return (settings.newPerDay - introduced).clamp(0, settings.newPerDay);
+  }
+
+  DueCounts cardsDueToday(String? mangaId, CardSkill skill, [DateTime? now]) =>
+      countDue(
+        cardsFor(mangaId, skill).map((w) => w.card(skill)),
+        now ?? DateTime.now(),
+        newPerDay: newCardAllowanceToday(skill, now),
+      );
+
+  int cardsLearned(String? mangaId, CardSkill skill) =>
+      cardsFor(mangaId, skill).where((w) => w.card(skill).learned).length;
+
+  void addMockResult(MockResult r) {
+    mockResults.add(r);
+    changed();
+  }
+
+  /// The commonplace book the words missed on mock tests go into, so they
+  /// come up as reading cards.
+  Manga mockMissesBook() {
+    const id = 'mock-misses';
+    final existing = mangaById(id);
+    if (existing != null) return existing;
+    final m = Manga(id: id, title: 'Mock test misses', commonplace: true);
+    mangas.add(m);
+    changed();
+    return m;
+  }
+
+  /// Adds [entries] to [book], skipping any already in it. Returns how
+  /// many were new.
+  int addEntriesTo(Manga book, Iterable<Entry> entries) {
+    final have = {for (final w in words) w.id};
+    var added = 0;
+    for (final e in entries) {
+      final wid = Word.idFor(book.id, e);
+      if (!have.add(wid)) continue;
+      words.add(Word(id: wid, mangaId: book.id, entry: e));
+      added++;
+    }
+    if (added > 0) changed();
+    return added;
   }
 
   /// Writes a word's shadowing schedule (an answer, or an undo).

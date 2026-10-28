@@ -392,6 +392,7 @@ class Word {
     this.form = '',
     this.focus = false,
     this.review = const ReviewState(),
+    this.kanjiReview = const ReviewState(),
     this.speaking = const ReviewState(),
     DateTime? added,
   }) : added = added ?? DateTime.now();
@@ -417,7 +418,19 @@ class Word {
 
   /// In the focus set: the few words being studied right now.
   bool focus;
+
+  /// The listening card: the word heard, its meaning recalled. Knowing a
+  /// word by ear and reading its kanji are different skills, and grading
+  /// both on one card left no honest answer when you knew one and not the
+  /// other — so they're scheduled apart. This is the older of the two,
+  /// and keeps what was graded before the split: those cards showed the
+  /// word with its reading a tap away, which tested knowing it.
   ReviewState review;
+
+  /// The reading card: the kanji seen, the reading and meaning recalled.
+  /// Only words written with kanji have one — a kana word is read the way
+  /// it's heard.
+  ReviewState kanjiReview;
 
   /// Shadowing's own schedule: saying a word is a different skill from
   /// recognising it, so it's graded and spaced separately.
@@ -434,6 +447,7 @@ class Word {
     if (form.isNotEmpty) 'form': form,
     if (focus) 'focus': true,
     'review': review.toJson(),
+    if (!kanjiReview.isNew) 'kanji': kanjiReview.toJson(),
     if (!speaking.isNew) 'speaking': speaking.toJson(),
     'added': added.toIso8601String(),
   };
@@ -448,9 +462,74 @@ class Word {
     form: j['form'] as String? ?? '',
     focus: j['focus'] as bool? ?? false,
     review: ReviewState.fromJson(j['review'] as Map<String, dynamic>?),
+    kanjiReview: ReviewState.fromJson(j['kanji'] as Map<String, dynamic>?),
     speaking: ReviewState.fromJson(j['speaking'] as Map<String, dynamic>?),
     added: DateTime.tryParse(j['added'] as String? ?? ''),
   );
+}
+
+/// Which skill a flash card tests.
+enum CardSkill {
+  /// Hear the word, recall its meaning.
+  listening,
+
+  /// See the kanji, recall the reading and meaning.
+  reading,
+}
+
+extension WordCards on Word {
+  /// Whether this word has a card for [skill].
+  bool hasCard(CardSkill skill) =>
+      skill == CardSkill.listening || entry.hasKanji;
+
+  ReviewState card(CardSkill skill) =>
+      skill == CardSkill.listening ? review : kanjiReview;
+}
+
+/// One mock JLPT test, as it went.
+class MockResult {
+  const MockResult({
+    required this.level,
+    required this.taken,
+    required this.readingRight,
+    required this.readingTotal,
+    required this.writingRight,
+    required this.writingTotal,
+    this.seconds = 0,
+  });
+
+  final String level;
+  final DateTime taken;
+  final int readingRight, readingTotal;
+  final int writingRight, writingTotal;
+  final int seconds;
+
+  int get right => readingRight + writingRight;
+  int get total => readingTotal + writingTotal;
+
+  Map<String, dynamic> toJson() => {
+    'level': level,
+    'taken': taken.toIso8601String(),
+    'reading': [readingRight, readingTotal],
+    'writing': [writingRight, writingTotal],
+    'seconds': seconds,
+  };
+
+  factory MockResult.fromJson(Map<String, dynamic> j) {
+    List<int> pair(String k) => [
+      for (final n in j[k] as List? ?? const [0, 0]) (n as num).toInt(),
+    ];
+    final r = pair('reading'), w = pair('writing');
+    return MockResult(
+      level: j['level'] as String? ?? '',
+      taken: DateTime.tryParse(j['taken'] as String? ?? '') ?? DateTime(2000),
+      readingRight: r[0],
+      readingTotal: r[1],
+      writingRight: w[0],
+      writingTotal: w[1],
+      seconds: (j['seconds'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 /// A diary entry, written in Japanese.

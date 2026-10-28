@@ -49,6 +49,12 @@ class _ShadowScreenState extends State<ShadowScreen> {
 
   bool _recording = false;
 
+  /// The card on screen, held until it's graded. The session's idea of
+  /// "current" changes as learning cards fall due — asked afresh on every
+  /// repaint, a card could be swapped out from under you as you tapped
+  /// Show answer.
+  String? _shown;
+
   /// Whether the card in front of you has a recording yet.
   String? _recordedFor;
   String? _autoPlayedFor;
@@ -98,7 +104,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
     setState(() => _recording = true);
   }
 
-  String? get _currentId => _session.current(DateTime.now());
+  String? get _currentId => _shown;
 
   void _grade(String id, Grade g) {
     if (_recording) _audio.stopRecording();
@@ -109,6 +115,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
       _answered++;
       _recording = false;
       _recordedFor = null;
+      _shown = null;
     });
   }
 
@@ -119,6 +126,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
     setState(() {
       if (_answered > 0) _answered--;
       _autoPlayedFor = undone.$1; // don't replay on undo
+      _shown = undone.$1;
     });
   }
 
@@ -127,7 +135,7 @@ class _ShadowScreenState extends State<ShadowScreen> {
     final lib = AppScope.library(context);
     final byId = {for (final w in lib.wordsFor(widget.mangaId)) w.id: w};
     final now = DateTime.now();
-    final id = _session.current(now);
+    final id = _shown ??= _session.current(now);
     final word = id == null ? null : byId[id];
     final total =
         _answered +

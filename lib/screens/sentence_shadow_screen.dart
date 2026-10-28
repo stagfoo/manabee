@@ -47,6 +47,12 @@ class _SentenceShadowScreenState extends State<SentenceShadowScreen> {
   StudySession? _session;
   int _answered = 0;
   bool _recording = false;
+
+  /// The card on screen, held until it's graded. The session's idea of
+  /// "current" changes as learning cards fall due — asked afresh on every
+  /// repaint, a card could be swapped out from under you as you tapped
+  /// Show answer.
+  String? _shown;
   String? _recordedFor;
   String? _autoPlayedFor;
 
@@ -98,6 +104,7 @@ class _SentenceShadowScreenState extends State<SentenceShadowScreen> {
     _answered = 0;
     _recording = false;
     _recordedFor = null;
+    _shown = null;
   }
 
   void _pick(String mode) {
@@ -143,6 +150,7 @@ class _SentenceShadowScreenState extends State<SentenceShadowScreen> {
       _answered++;
       _recording = false;
       _recordedFor = null;
+      _shown = null;
     });
   }
 
@@ -153,6 +161,7 @@ class _SentenceShadowScreenState extends State<SentenceShadowScreen> {
     setState(() {
       if (_answered > 0) _answered--;
       _autoPlayedFor = undone.$1;
+      _shown = undone.$1;
     });
   }
 
@@ -160,7 +169,7 @@ class _SentenceShadowScreenState extends State<SentenceShadowScreen> {
   Widget build(BuildContext context) {
     final session = _session;
     final now = DateTime.now();
-    final key = session?.current(now);
+    final key = session == null ? null : _shown ??= session.current(now);
     final sentence = key == null
         ? null
         : _pool.where((s) => s.key == key).firstOrNull;

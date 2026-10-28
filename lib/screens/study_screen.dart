@@ -19,6 +19,7 @@ import 'listen_screen.dart';
 import 'sentence_shadow_screen.dart';
 import 'shadow_screen.dart';
 import 'match_screen.dart';
+import 'mock_test_screen.dart';
 import 'quiz_screen.dart';
 import 'conjugation_screen.dart';
 import 'grammar_screen.dart';
@@ -31,10 +32,15 @@ GameCard gameCardOf(Word w) => GameCard(
 );
 
 /// Flash cards run full screen, above the dock, as a review does in Anki.
-void openFlashcards(BuildContext context, String? mangaId) => Navigator.of(
-  context,
-  rootNavigator: true,
-).push(MaterialPageRoute(builder: (_) => FlashcardsScreen(mangaId: mangaId)));
+void openFlashcards(
+  BuildContext context,
+  String? mangaId, [
+  CardSkill skill = CardSkill.listening,
+]) => Navigator.of(context, rootNavigator: true).push(
+  MaterialPageRoute(
+    builder: (_) => FlashcardsScreen(mangaId: mangaId, skill: skill),
+  ),
+);
 
 class StudyScreen extends StatefulWidget {
   const StudyScreen({super.key});
@@ -76,8 +82,9 @@ class _StudyScreenState extends State<StudyScreen> {
     // words being learned now — whichever deck is picked above.
     final listenDeck = lib.focusCount > 0 ? kFocusDeck : _mangaId;
     final listenWords = lib.wordsFor(listenDeck);
-    final today = lib.dueToday(_mangaId);
-    final learned = lib.learnedCount(_mangaId);
+    final heard = lib.cardsDueToday(_mangaId, CardSkill.listening);
+    final read = lib.cardsDueToday(_mangaId, CardSkill.reading);
+    final kanjiWords = lib.cardsFor(_mangaId, CardSkill.reading).length;
     // Manga once they've given you words; commonplace books always — you
     // made those to study.
     final decks = lib.recent
@@ -123,24 +130,119 @@ class _StudyScreenState extends State<StudyScreen> {
             onChoose: _chooseFocus,
           ),
           const SizedBox(height: 8),
+          _Section(
+            icon: Icons.hearing_rounded,
+            title: 'Listening',
+            subtitle: 'Knowing a word when you hear it',
+          ),
           _DueCard(
-            today: today,
+            label: 'Listening cards',
+            hint: 'Hear the word, recall what it means',
+            today: heard,
             deckSize: words.length,
+            learned: lib.cardsLearned(_mangaId, CardSkill.listening),
             onStart: () => openFlashcards(context, _mangaId),
           ),
-          const SizedBox(height: 8),
-          _Panel(
-            child: _ProgressRow(
-              label: 'Words learned',
-              learned: learned,
-              total: words.length,
+          const SizedBox(height: 4),
+          if (listenDeck == kFocusDeck)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
+              child: Text(
+                'Practice below uses your ${listenWords.length} focus words.',
+                style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+              ),
+            ),
+          _Tile(
+            icon: Icons.headphones_rounded,
+            title: 'Listen',
+            subtitle: 'Audio playlist: Japanese, a pause, the meaning, a chime',
+            enabled: listenWords.isNotEmpty,
+            onTap: () => Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(
+                builder: (_) => ListenScreen(mangaId: listenDeck),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          _Tile(
+            icon: Icons.record_voice_over_outlined,
+            title: 'Listening Quiz',
+            subtitle: listenWords.length >= kMinQuizWords
+                ? 'Hear the word, pick its meaning'
+                : 'Needs $kMinQuizWords words to play',
+            enabled: listenWords.length >= kMinQuizWords,
+            onTap: () => open(QuizScreen(mangaId: listenDeck, audio: true)),
+          ),
+          _Tile(
+            icon: Icons.volume_up_outlined,
+            title: 'Listening Match',
+            subtitle: listenWords.length >= kMinMatchWords
+                ? 'Tap a tile to hear it; pair it with its meaning'
+                : 'Needs $kMinMatchWords words to play',
+            enabled: listenWords.length >= kMinMatchWords,
+            onTap: () => open(MatchScreen(mangaId: listenDeck, audio: true)),
+          ),
+          _Section(
+            icon: Icons.menu_book_rounded,
+            title: 'Reading',
+            subtitle: 'Knowing a word when you see its kanji',
+          ),
+          _DueCard(
+            label: 'Reading cards',
+            hint: 'See the kanji, recall the reading and meaning',
+            today: read,
+            deckSize: kanjiWords,
+            learned: lib.cardsLearned(_mangaId, CardSkill.reading),
+            emptyText: words.isEmpty
+                ? 'No flash cards yet.'
+                : 'No words with kanji in this deck.',
+            onStart: () => openFlashcards(context, _mangaId, CardSkill.reading),
+          ),
+          const SizedBox(height: 4),
+          _Tile(
+            icon: Icons.assignment_outlined,
+            title: 'Mock JLPT test',
+            subtitle: switch (lib.mockResults.lastOrNull) {
+              null =>
+                'N5 · N4 · N3 — kanji readings and spellings, '
+                    'test style',
+              final r =>
+                'Last: ${r.level} ${r.right}/${r.total} · '
+                    'kanji readings and spellings',
+            },
+            enabled: true,
+            onTap: () => Navigator.of(
+              context,
+              rootNavigator: true,
+            ).push(MaterialPageRoute(builder: (_) => const MockTestScreen())),
+          ),
+          _Tile(
+            icon: Icons.quiz_outlined,
+            title: 'Quiz',
+            subtitle: 'Pick the meaning, then the word',
+            enabled: words.length >= kMinQuizWords,
+            onTap: () => open(QuizScreen(mangaId: _mangaId)),
+          ),
+          _Tile(
+            icon: Icons.extension_outlined,
+            title: 'Match',
+            subtitle: 'Pair each word with its meaning',
+            enabled: words.length >= kMinMatchWords,
+            onTap: () => open(MatchScreen(mangaId: _mangaId)),
+          ),
+          _Tile(
+            icon: Icons.sports_esports_outlined,
+            title: 'Kanji Chain',
+            subtitle: 'Slingshot game: fire parts together to build kanji',
+            enabled: true,
+            onTap: () => Navigator.of(
+              context,
+              rootNavigator: true,
+            ).push(MaterialPageRoute(builder: (_) => const KanjiChainScreen())),
+          ),
           const _Section(
             icon: Icons.edit_note_rounded,
             title: 'Writing',
-            subtitle: 'Reading and writing Japanese',
+            subtitle: 'Putting Japanese together',
           ),
           _Tile(
             icon: Icons.book_outlined,
@@ -171,66 +273,6 @@ class _StudyScreenState extends State<StudyScreen> {
             enabled: true,
             onTap: () =>
                 open(GrammarScreen(drill: Drill.joining, mangaId: _mangaId)),
-          ),
-          _Tile(
-            icon: Icons.quiz_outlined,
-            title: 'Quiz',
-            subtitle: 'Pick the meaning, then the word',
-            enabled: words.length >= kMinQuizWords,
-            onTap: () => open(QuizScreen(mangaId: _mangaId)),
-          ),
-          _Tile(
-            icon: Icons.extension_outlined,
-            title: 'Match',
-            subtitle: 'Pair each word with its meaning',
-            enabled: words.length >= kMinMatchWords,
-            onTap: () => open(MatchScreen(mangaId: _mangaId)),
-          ),
-          _Tile(
-            icon: Icons.sports_esports_outlined,
-            title: 'Kanji Chain',
-            subtitle: 'Slingshot game: fire parts together to build kanji',
-            enabled: true,
-            onTap: () => Navigator.of(
-              context,
-              rootNavigator: true,
-            ).push(MaterialPageRoute(builder: (_) => const KanjiChainScreen())),
-          ),
-          _Section(
-            icon: Icons.hearing_rounded,
-            title: 'Listening',
-            subtitle: listenDeck == kFocusDeck
-                ? 'Your ${listenWords.length} focus words, by ear'
-                : 'Understanding Japanese by ear',
-          ),
-          _Tile(
-            icon: Icons.headphones_rounded,
-            title: 'Listen',
-            subtitle: 'Audio playlist: Japanese, a pause, the meaning, a chime',
-            enabled: listenWords.isNotEmpty,
-            onTap: () => Navigator.of(context, rootNavigator: true).push(
-              MaterialPageRoute(
-                builder: (_) => ListenScreen(mangaId: listenDeck),
-              ),
-            ),
-          ),
-          _Tile(
-            icon: Icons.record_voice_over_outlined,
-            title: 'Listening Quiz',
-            subtitle: listenWords.length >= kMinQuizWords
-                ? 'Hear the word, pick its meaning'
-                : 'Needs $kMinQuizWords words to play',
-            enabled: listenWords.length >= kMinQuizWords,
-            onTap: () => open(QuizScreen(mangaId: listenDeck, audio: true)),
-          ),
-          _Tile(
-            icon: Icons.volume_up_outlined,
-            title: 'Listening Match',
-            subtitle: listenWords.length >= kMinMatchWords
-                ? 'Tap a tile to hear it; pair it with its meaning'
-                : 'Needs $kMinMatchWords words to play',
-            enabled: listenWords.length >= kMinMatchWords,
-            onTap: () => open(MatchScreen(mangaId: listenDeck, audio: true)),
           ),
           const _Section(
             icon: Icons.mic_none_rounded,
@@ -320,14 +362,22 @@ class _Panel extends StatelessWidget {
 /// with Anki's colours for the three counts.
 class _DueCard extends StatelessWidget {
   const _DueCard({
+    required this.label,
+    required this.hint,
     required this.today,
     required this.deckSize,
+    required this.learned,
     required this.onStart,
+    this.emptyText = 'No flash cards yet.',
   });
 
+  final String label;
+  final String hint;
   final DueCounts today;
   final int deckSize;
+  final int learned;
   final VoidCallback onStart;
+  final String emptyText;
 
   @override
   Widget build(BuildContext context) {
@@ -335,28 +385,38 @@ class _DueCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Expanded(child: Text(label, style: T.bodyLg)),
+              if (deckSize > 0)
+                Text(
+                  '$learned / $deckSize learned',
+                  style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+                ),
+            ],
+          ),
+          Text(hint, style: T.bodyMd.copyWith(color: C.inactive, fontSize: 12)),
+          const SizedBox(height: 12),
           if (today.total == 0)
             Row(
               children: [
                 const Icon(
                   Icons.check_circle_outline_rounded,
-                  size: 28,
+                  size: 24,
                   color: C.lime,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     deckSize == 0
-                        ? 'No flash cards yet.'
+                        ? emptyText
                         : 'Done for today — nothing due right now.',
-                    style: T.bodyLg,
+                    style: T.bodyMd,
                   ),
                 ),
               ],
             )
           else ...[
-            Text('Due today', style: T.pill.copyWith(color: C.textDim)),
-            const SizedBox(height: 12),
             Row(
               children: [
                 _Count('${today.newCards}', 'new', Srs.newCards),
@@ -364,14 +424,14 @@ class _DueCard extends StatelessWidget {
                 _Count('${today.review}', 'review', Srs.review),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: C.lime,
                   foregroundColor: C.onLime,
-                  minimumSize: const Size(0, 56),
+                  minimumSize: const Size(0, 52),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -410,53 +470,6 @@ class _Count extends StatelessWidget {
         Text(label, style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12)),
       ],
     ),
-  );
-}
-
-class _ProgressRow extends StatelessWidget {
-  const _ProgressRow({
-    required this.label,
-    required this.learned,
-    required this.total,
-  });
-
-  final String label;
-  final int learned;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Text(
-              label,
-              style: T.bodyLg,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text('$learned / $total', style: T.bodyMd.copyWith(color: C.textDim)),
-        ],
-      ),
-      const SizedBox(height: 8),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: LinearProgressIndicator(
-          value: total == 0 ? 0 : learned / total,
-          minHeight: 8,
-          backgroundColor: C.track,
-          color: C.lime,
-        ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        'Learned = reached a week between reviews.',
-        style: T.bodyMd.copyWith(color: C.inactive, fontSize: 11),
-      ),
-    ],
   );
 }
 

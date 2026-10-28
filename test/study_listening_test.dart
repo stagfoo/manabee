@@ -66,7 +66,7 @@ void main() {
   ) async {
     await open(tester, focus: true);
     await tester.scrollUntilVisible(
-      find.text('Your 5 focus words, by ear'),
+      find.text('Practice below uses your 5 focus words.'),
       200,
       scrollable: page.first,
     );
