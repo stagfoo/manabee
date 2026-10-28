@@ -351,6 +351,21 @@ class Library extends ChangeNotifier {
     changed();
   }
 
+  /// [e] as already saved, from any book — the same dictionary word
+  /// (spelling and reading) — or null.
+  Word? savedWord(Entry e) => words
+      .where((w) => w.entry.word == e.word && w.entry.reading == e.reading)
+      .firstOrNull;
+
+  /// Adds [ids] to the focus set, keeping what's in it.
+  void addFocus(Iterable<String> ids) {
+    final add = ids.toSet();
+    for (final w in words) {
+      if (add.contains(w.id)) w.focus = true;
+    }
+    changed();
+  }
+
   void toggleFocus(Word w) {
     w.focus = !w.focus;
     changed();

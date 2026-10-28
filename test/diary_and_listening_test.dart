@@ -24,6 +24,12 @@ class FakeDictionary implements Dictionary {
 
   @override
   Future<List<Entry>> lookup(String q) async {
+    // English, as jisho.org would answer it.
+    final english = _words.entries
+        .where((e) => e.value.$2 == q.toLowerCase())
+        .map((e) => e.key)
+        .firstOrNull;
+    if (english != null) return lookup(english);
     final w = _words[q];
     if (w == null) return const [];
     return [
@@ -134,16 +140,64 @@ void main() {
     expect(lib.diary.single.text, '私がが学生です。');
     expect(find.text('「が」 twice in a row.'), findsOneWidget);
 
-    // Tap 学 (the start of 学生) to look it up, and save it.
+    // Tap 学 (the start of 学生) to look it up; add it and study it.
     await tester.tap(find.text('学'));
     await tester.pumpAndSettle();
-    expect(find.text('Save to Diary words'), findsOneWidget);
-    await tester.tap(find.text('Save to Diary words'));
+    expect(find.text('Book'), findsOneWidget);
+    await tester.tap(find.text('Add & study'));
     await tester.pumpAndSettle();
     final book = lib.mangaById(kDiaryBookId)!;
     expect(book.commonplace, isTrue);
-    expect(lib.wordsFor(book.id).single.entry.word, '学生');
-    expect(lib.wordsFor(book.id).single.context, '私がが学生です');
+    final w = lib.wordsFor(book.id).single;
+    expect(w.entry.word, '学生');
+    expect(w.context, '私がが学生です');
+    expect(w.focus, isTrue);
+
+    // Looked up again, it's known: nothing to add, already studied.
+    await tester.tap(find.text('学'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add & study'), findsNothing);
+    expect(find.text('Studying it'), findsOneWidget);
+    await lib.save();
+  });
+
+  testWidgets('diary: look up English, insert it, study the entry', (
+    tester,
+  ) async {
+    final lib = await open(tester, const DiaryScreen());
+    // 私 is already saved, from a manga, and not being studied.
+    lib.saveWord('m', entry('私', 'わたし', 'I'));
+    await tester.tap(find.text('New entry'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '私は');
+
+    // A word you don't know yet, looked up in English, put in the entry.
+    await tester.tap(find.text('Look up'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'student');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('学生').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Insert「学生」into the entry'));
+    await tester.pumpAndSettle();
+    expect(lib.diary.single.text, '私は学生');
+
+    // Every word written, into the focus set: 私's existing card, not a
+    // copy; 学生 new, into Diary words.
+    await tester.tap(find.text('Check'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Study the words in this entry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Study 2 words?'), findsOneWidget);
+    await tester.tap(find.text('Study them'));
+    await tester.pumpAndSettle();
+    expect(lib.words.where((w) => w.entry.word == '私'), hasLength(1));
+    expect(lib.wordsFor(kFocusDeck).map((w) => w.entry.word).toSet(), {
+      '私',
+      '学生',
+    });
+    expect(lib.wordsFor(kDiaryBookId).single.entry.word, '学生');
     await lib.save();
   });
 }

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../core/diary_check.dart';
 import '../core/scan.dart';
 import '../models.dart';
+import '../services/store.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/entry_detail.dart';
@@ -183,53 +184,329 @@ class _DiaryEntryScreenState extends State<DiaryEntryScreen> {
             .map((s) => text.substring(s.$1, s.$2).trim())
             .firstOrNull ??
         '';
+    _wordSheet(
+      e,
+      sentence: sentence,
+      surface: r.form == null ? '' : surface,
+      form: r.form?.label ?? '',
+      written: r.form == null ? '' : 'Written: $surface  ·  ${r.form!.label}',
+    );
+  }
+
+  /// A word's sheet: the entry, and what to do with it — add it to a book
+  /// and study it, or, when it's saved already, study that card; and for
+  /// a word looked up while writing, put it in the entry.
+  void _wordSheet(
+    Entry e, {
+    String sentence = '',
+    String surface = '',
+    String form = '',
+    String written = '',
+    bool insertable = false,
+  }) {
+    final lib = AppScope.read(context);
+    var bookId = kDiaryBookId;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (r.form != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Written: $surface  ·  ${r.form!.label}',
-                    style: T.monoBold.copyWith(color: C.textDim, fontSize: 12),
-                  ),
-                ),
-              EntryDetail(e, context_: sentence, surface: surface),
-              const SizedBox(height: 16),
-              LimeButton(
-                label: 'Save to Diary words',
-                icon: Icons.add_rounded,
-                onPressed: () {
-                  final lib = AppScope.read(context);
-                  final book = lib.diaryWordBook();
-                  final added = lib.saveWord(
-                    book.id,
-                    e,
-                    context: sentence,
-                    surface: r.form == null ? '' : surface,
-                    form: r.form?.label ?? '',
-                  );
-                  Navigator.pop(context);
-                  toast(
-                    context,
-                    added
-                        ? 'Saved ${e.word} to Diary words.'
-                        : '${e.word} is already in Diary words.',
-                  );
-                },
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) {
+          final saved = lib.savedWord(e);
+          final books = [
+            if (!lib.mangas.any((m) => m.id == kDiaryBookId))
+              (kDiaryBookId, 'Diary words'),
+            for (final m in lib.recent) (m.id, m.title),
+          ];
+          void add({required bool study}) {
+            final book = bookId == kDiaryBookId
+                ? lib.diaryWordBook()
+                : lib.mangaById(bookId)!;
+            lib.saveWord(
+              book.id,
+              e,
+              context: sentence,
+              surface: surface,
+              form: form,
+            );
+            final w = lib.savedWord(e);
+            if (study && w != null) lib.addFocus([w.id]);
+            Navigator.pop(sheet);
+            toast(
+              context,
+              study
+                  ? 'Added ${e.word} to ${book.title} and your focus words.'
+                  : 'Added ${e.word} to ${book.title}.',
+            );
+          }
+
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (written.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        written,
+                        style: T.monoBold.copyWith(
+                          color: C.textDim,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  EntryDetail(e, context_: sentence, surface: surface),
+                  const SizedBox(height: 16),
+                  if (insertable) ...[
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(sheet);
+                        _insert(e.word);
+                      },
+                      icon: const Icon(Icons.text_increase_rounded),
+                      label: Text('Insert「${e.word}」into the entry'),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (saved != null) ...[
+                    Text(
+                      'Saved in '
+                      '${lib.mangaById(saved.mangaId)?.title ?? 'a book'}'
+                      '${saved.focus ? ' · in your focus words' : ''}',
+                      style: T.bodyMd.copyWith(color: C.textDim),
+                    ),
+                    const SizedBox(height: 8),
+                    LimeButton(
+                      label: saved.focus ? 'Studying it' : 'Study it',
+                      icon: saved.focus
+                          ? Icons.check_rounded
+                          : Icons.center_focus_strong_rounded,
+                      onPressed: saved.focus
+                          ? null
+                          : () {
+                              lib.addFocus([saved.id]);
+                              Navigator.pop(sheet);
+                              toast(
+                                context,
+                                '${e.word} is in your focus words.',
+                              );
+                            },
+                    ),
+                  ] else ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: bookId,
+                      decoration: const InputDecoration(labelText: 'Book'),
+                      dropdownColor: C.elevated,
+                      items: [
+                        for (final (id, title) in books)
+                          DropdownMenuItem(value: id, child: Text(title)),
+                      ],
+                      onChanged: (v) => setSheet(() => bookId = v ?? bookId),
+                    ),
+                    const SizedBox(height: 12),
+                    LimeButton(
+                      label: 'Add & study',
+                      icon: Icons.center_focus_strong_rounded,
+                      onPressed: () => add(study: true),
+                    ),
+                    TextButton(
+                      onPressed: () => add(study: false),
+                      child: const Text('Add only'),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
+  }
+
+  /// Writes [word] into the entry at the cursor (or the end).
+  void _insert(String word) {
+    final value = _text.value;
+    final sel = value.selection;
+    final at = sel.isValid ? sel.start : value.text.length;
+    final end = sel.isValid ? sel.end : value.text.length;
+    final text = value.text.replaceRange(at, end, word);
+    _text.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: at + word.length),
+    );
+    _changed(text);
+    if (_checking) _check();
+  }
+
+  /// Look up a word by English or Japanese — for a word you want to write
+  /// but don't know yet.
+  Future<void> _search() async {
+    final dictionary = AppScope.dictionaryOf(context);
+    final query = TextEditingController();
+    List<Entry> results = const [];
+    String? problem;
+    var loading = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) {
+          Future<void> run(String q) async {
+            if (q.trim().isEmpty) return;
+            setSheet(() {
+              loading = true;
+              problem = null;
+            });
+            try {
+              final found = await dictionary.lookup(q.trim());
+              setSheet(() {
+                results = found;
+                problem = found.isEmpty ? 'Nothing found for "$q".' : null;
+              });
+            } on Exception catch (_) {
+              setSheet(
+                () => problem =
+                    'Couldn\'t search — English goes to jisho.org, so it '
+                    'needs the internet. Japanese works offline.',
+              );
+            } finally {
+              setSheet(() => loading = false);
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheet).viewInsets.bottom,
+            ),
+            child: SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(sheet).size.height * 0.7,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: TextField(
+                        controller: query,
+                        autofocus: true,
+                        textInputAction: TextInputAction.search,
+                        style: T.bodyLg,
+                        decoration: const InputDecoration(
+                          hintText: 'English or Japanese: tired, つかれる…',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ),
+                        onSubmitted: run,
+                      ),
+                    ),
+                    if (loading) const LinearProgressIndicator(minHeight: 2),
+                    if (problem != null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          problem!,
+                          style: T.bodyMd.copyWith(color: C.textDim),
+                        ),
+                      ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          for (final e in results.take(12))
+                            WordRow(
+                              e,
+                              onTap: () {
+                                Navigator.pop(sheet);
+                                _wordSheet(e, insertable: true);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    query.dispose();
+  }
+
+  /// Every word written in the entry — particles aside — into the focus
+  /// set: saved to Diary words if new, the existing card if not.
+  Future<void> _studyEntryWords() async {
+    final lib = AppScope.read(context);
+    final dictionary = AppScope.dictionaryOf(context);
+    final text = _text.text;
+    setState(() => _busy = true);
+    final found = <String, (Entry, String, String)>{};
+    for (final w in _words) {
+      if (w.particle || w.corrected != null) continue;
+      final r = await scanWord(text, w.start, dictionary.lookup);
+      final e = r?.entries.firstOrNull;
+      if (r == null || e == null || r.end != w.end) continue;
+      final surface = r.surfaceOf(text);
+      found.putIfAbsent(
+        '${e.word}|${e.reading}',
+        () => (e, r.form == null ? '' : surface, r.form?.label ?? ''),
+      );
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (found.isEmpty) {
+      toast(context, 'No dictionary words found in this entry.');
+      return;
+    }
+    final entries = found.values.toList();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text('Study ${entries.length} words?'),
+        content: Text(
+          '${entries.map((x) => x.$1.word).join('、')}\n\n'
+          'New ones are saved to Diary words; all go into your focus '
+          'words, for flash cards, listening and shadowing.',
+          style: T.bodyMd,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Study them'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final book = lib.diaryWordBook();
+    final ids = <String>[];
+    for (final (e, surface, form) in entries) {
+      var w = lib.savedWord(e);
+      if (w == null) {
+        final sentence =
+            sentences(text)
+                .map((s) => text.substring(s.$1, s.$2).trim())
+                .where((s) => s.contains(surface.isEmpty ? e.word : surface))
+                .firstOrNull ??
+            '';
+        lib.saveWord(
+          book.id,
+          e,
+          context: sentence,
+          surface: surface,
+          form: form,
+        );
+        w = lib.savedWord(e);
+      }
+      if (w != null) ids.add(w.id);
+    }
+    lib.addFocus(ids);
+    toast(context, '${ids.length} words are in your focus words.');
   }
 
   @override
@@ -241,7 +518,18 @@ class _DiaryEntryScreenState extends State<DiaryEntryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(diaryDate(_entry.written), style: T.monoSm),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(diaryDate(_entry.written), style: T.monoSm),
+                ),
+                TextButton.icon(
+                  onPressed: _search,
+                  icon: const Icon(Icons.search_rounded, size: 18),
+                  label: const Text('Look up'),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             SegmentedButton<bool>(
               segments: const [
@@ -358,6 +646,12 @@ class _DiaryEntryScreenState extends State<DiaryEntryScreen> {
               ],
             ),
           ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _studyEntryWords,
+          icon: const Icon(Icons.center_focus_strong_rounded),
+          label: const Text('Study the words in this entry'),
+        ),
         const SizedBox(height: 8),
         Text(
           'Tap any word to look it up. Purple are particles; red is a word '
