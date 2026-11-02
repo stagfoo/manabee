@@ -42,6 +42,7 @@ applicationId: **`com.manabee.manabee`** (org + name default — a regenerated
 - Bubbles view: every translation you've written, tap to jump to its page
 - Saved words keep their full dictionary entry, so they work offline
 - **Commonplace books**: word lists of your own with no pages (days of the week, a topic, words from a song). Make one from the Words tab, then add words from the dictionary in Japanese or English; added results turn mint. They study like any other deck and stay off the reading shelf
+- **Move words between books**: **Move to another book** on any word, or **Move words…** on a book's page to choose several (or all) — into any manga or commonplace book, or a new one made on the way. Progress goes with them (both flash-card schedules, speaking, focus, the sentence); a word the book already has is merged, keeping the further-along schedule of each
 - **JLPT packs**: the same new-book tile offers N5 to N1, each made into a commonplace book from the offline dictionary's level tags (about 900 N5 words, 800 N4, 2,400 N3, 1,800 N2, 2,800 N1 — community lists; the JLPT itself publishes none). Common words come first; **Focus next 20** works through a pack in order. Importing a level again only adds what's missing, so progress is kept
 
 **Study** — four sections: **Listening** (listening cards, Listen, Listening Quiz, Listening Match), **Reading** (reading cards, Mock JLPT test, Quiz, Match, Kanji Chain), **Writing** (Diary, Verb maps, Particles, Joining words), **Speaking** (Shadowing)

@@ -420,6 +420,71 @@ class Library extends ChangeNotifier {
     return true;
   }
 
+  /// Moves the words [ids] into book [mangaId], keeping their progress:
+  /// all three schedules, focus, the sentence they were found in. A word
+  /// the book already has is merged into it, keeping the further-along
+  /// schedule of each kind. Returns how many moved and how many merged.
+  (int, int) moveWords(Iterable<String> ids, String mangaId) {
+    var moved = 0;
+    var merged = 0;
+    for (final id in ids.toList()) {
+      final i = words.indexWhere((w) => w.id == id);
+      if (i < 0 || words[i].mangaId == mangaId) continue;
+      final w = words[i];
+      final newId = Word.idFor(mangaId, w.entry);
+      final there = words.indexWhere((x) => x.id == newId);
+      if (there >= 0) {
+        final t = words[there];
+        words[there] = Word(
+          id: t.id,
+          mangaId: mangaId,
+          entry: t.entry,
+          context: t.context.isNotEmpty ? t.context : w.context,
+          bubbleId: t.bubbleId,
+          surface: t.surface.isNotEmpty ? t.surface : w.surface,
+          form: t.form.isNotEmpty ? t.form : w.form,
+          focus: t.focus || w.focus,
+          review: _further(t.review, w.review),
+          kanjiReview: _further(t.kanjiReview, w.kanjiReview),
+          speaking: _further(t.speaking, w.speaking),
+          added: t.added.isBefore(w.added) ? t.added : w.added,
+        );
+        words.removeAt(i);
+        merged++;
+      } else {
+        words[i] = Word(
+          id: newId,
+          mangaId: mangaId,
+          entry: w.entry,
+          context: w.context,
+          // A bubble belongs to its manga; the sentence goes along, the
+          // link to the page doesn't.
+          bubbleId: null,
+          surface: w.surface,
+          form: w.form,
+          focus: w.focus,
+          review: w.review,
+          kanjiReview: w.kanjiReview,
+          speaking: w.speaking,
+          added: w.added,
+        );
+        moved++;
+      }
+    }
+    changed();
+    return (moved, merged);
+  }
+
+  /// Of two schedules for the same word, the one further along.
+  static ReviewState _further(ReviewState a, ReviewState b) {
+    if (a.isNew) return b;
+    if (b.isNew) return a;
+    if (a.intervalDays != b.intervalDays) {
+      return a.intervalDays > b.intervalDays ? a : b;
+    }
+    return a.reps >= b.reps ? a : b;
+  }
+
   void removeWord(String id) {
     words.removeWhere((w) => w.id == id);
     changed();

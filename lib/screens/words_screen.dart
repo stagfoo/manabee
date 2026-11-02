@@ -55,6 +55,115 @@ class _WordsScreenState extends State<WordsScreen> {
     }
   }
 
+  /// Moves [ids] to a book picked from a list (or a new one).
+  Future<void> _move(List<String> ids) async {
+    final target = await pickBook(context, exclude: widget.mangaId);
+    if (target == null || !mounted) return;
+    final lib = AppScope.read(context);
+    final (moved, merged) = lib.moveWords(ids, target);
+    final title = lib.mangaById(target)?.title ?? 'the book';
+    toast(
+      context,
+      [
+        if (moved > 0) 'Moved ${moved == 1 ? 'it' : '$moved words'} to $title',
+        if (merged > 0)
+          '$merged already there — merged, keeping the further-along progress',
+      ].join('; '),
+    );
+  }
+
+  /// Pick several of this book's words to move.
+  Future<void> _moveSome() async {
+    final lib = AppScope.read(context);
+    final words = lib.wordsFor(widget.mangaId).reversed.toList();
+    final picked = <String>{};
+    final go = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(sheet).size.height * 0.8,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          picked.isEmpty
+                              ? 'Choose words to move'
+                              : '${picked.length} chosen',
+                          style: T.headlineMd.copyWith(fontSize: 20),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setSheet(() {
+                          if (picked.length == words.length) {
+                            picked.clear();
+                          } else {
+                            picked.addAll(words.map((w) => w.id));
+                          }
+                        }),
+                        child: Text(
+                          picked.length == words.length
+                              ? 'Select none'
+                              : 'Select all',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      for (final w in words)
+                        CheckboxListTile(
+                          value: picked.contains(w.id),
+                          onChanged: (on) => setSheet(
+                            () => on == true
+                                ? picked.add(w.id)
+                                : picked.remove(w.id),
+                          ),
+                          activeColor: C.lime,
+                          checkColor: C.onLime,
+                          title: Text(
+                            w.entry.word,
+                            style: T.jp.copyWith(fontSize: 17),
+                          ),
+                          subtitle: Text(
+                            w.entry.shortMeaning,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: T.bodyMd.copyWith(
+                              color: C.textDim,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: LimeButton(
+                    label: 'Move to…',
+                    icon: Icons.drive_file_move_outline,
+                    onPressed: picked.isEmpty
+                        ? null
+                        : () => Navigator.pop(sheet, true),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (go == true && mounted) await _move(picked.toList());
+  }
+
   void _showWord(Word w) {
     showModalBottomSheet<void>(
       context: context,
@@ -68,6 +177,15 @@ class _WordsScreenState extends State<WordsScreen> {
             children: [
               EntryDetail(w.entry, context_: w.context, surface: w.surface),
               const SizedBox(height: 16),
+              GhostButton(
+                label: 'Move to another book',
+                icon: Icons.drive_file_move_outline,
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _move([w.id]);
+                },
+              ),
+              const SizedBox(height: 8),
               GhostButton(
                 label: 'Remove from deck',
                 icon: Icons.delete_outline_rounded,
@@ -121,6 +239,15 @@ class _WordsScreenState extends State<WordsScreen> {
     );
 
     final wordList = [
+      if (words.isNotEmpty)
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _moveSome,
+            icon: const Icon(Icons.drive_file_move_outline, size: 18),
+            label: const Text('Move words…'),
+          ),
+        ),
       if (words.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),

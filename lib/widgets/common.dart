@@ -631,3 +631,69 @@ class NotebookCover extends StatelessWidget {
     );
   }
 }
+
+/// Asks which book to put words in: any book but [exclude], or a new
+/// commonplace book. Returns its id, or null if cancelled.
+Future<String?> pickBook(BuildContext context, {String? exclude}) async {
+  final lib = AppScope.read(context);
+  const newBook = '\u0000new';
+  final books = [
+    for (final m in lib.recent)
+      if (m.id != exclude) m,
+  ];
+  final choice = await showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheet) => SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheet).size.height * 0.7,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              child: Text(
+                'Move to',
+                style: T.headlineMd.copyWith(fontSize: 20),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_rounded, color: C.lime),
+              title: const Text('New commonplace book…'),
+              onTap: () => Navigator.pop(sheet, newBook),
+            ),
+            for (final m in books)
+              ListTile(
+                leading: Text(
+                  m.commonplace ? '📒' : '📖',
+                  style: const TextStyle(fontSize: 20),
+                ),
+                title: Text(m.title),
+                subtitle: Text(
+                  '${lib.wordsFor(m.id).length} words',
+                  style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
+                ),
+                onTap: () => Navigator.pop(sheet, m.id),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+  if (choice != newBook || !context.mounted) return choice;
+  final title = await promptText(
+    context,
+    title: 'New commonplace book',
+    hint: 'Days of the week, food, words from a song…',
+    action: 'Create',
+  );
+  if (title == null || !context.mounted) return null;
+  return lib
+      .addCommonplaceBook(
+        title.trim().isEmpty ? 'Commonplace book' : title.trim(),
+      )
+      .id;
+}
