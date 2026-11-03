@@ -351,6 +351,17 @@ class Library extends ChangeNotifier {
     changed();
   }
 
+  /// Sets [w] to [status] by hand — "I know this one already". Both flash
+  /// cards follow; speaking keeps its own record. A known word leaves the
+  /// focus set: there's nothing to drill.
+  void setStatus(Word w, WordStatus status, [DateTime? now]) {
+    final state = stateFor(status, now ?? DateTime.now());
+    w.review = state;
+    if (w.entry.hasKanji) w.kanjiReview = state;
+    if (status == WordStatus.known) w.focus = false;
+    changed();
+  }
+
   /// [e] as already saved, from any book — the same dictionary word
   /// (spelling and reading) — or null.
   Word? savedWord(Entry e) => words

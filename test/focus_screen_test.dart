@@ -100,4 +100,56 @@ void main() {
     expect(find.text('Study 19'), findsOneWidget);
     await lib.save();
   });
+
+  test('marking a word known: learned, out of focus, no new card spent', () {
+    final lib = Library(MemoryStorage());
+    for (var i = 1; i <= 3; i++) {
+      lib.saveWord('m', entry('語$i'));
+    }
+    lib.focusNext();
+    final w = lib.words.first;
+    final now = DateTime(2026, 11, 4, 9);
+    lib.setStatus(w, WordStatus.known, now);
+    expect(w.review.learned, isTrue);
+    expect(w.review.due, now.add(const Duration(days: kKnownIntervalDays)));
+    expect(w.focus, isFalse);
+    expect(lib.newAllowanceToday(now), lib.settings.newPerDay);
+    expect(wordStatusOf(w.review), WordStatus.known);
+
+    // Next 20 skips it.
+    lib.setFocus({});
+    lib.focusNext();
+    expect(lib.wordsFor(kFocusDeck).map((x) => x.entry.word), ['語2', '語3']);
+
+    // Back to new, and to studying.
+    lib.setStatus(w, WordStatus.fresh, now);
+    expect(w.review.isNew, isTrue);
+    lib.setStatus(w, WordStatus.studying, now);
+    expect(wordStatusOf(w.review), WordStatus.studying);
+    expect(w.review.isDue(now), isTrue);
+    lib.dispose();
+  });
+
+  testWidgets('the status select on a focus row', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final lib = Library(MemoryStorage());
+    lib.saveWord('m', entry('森'));
+    lib.saveWord('m', entry('朝'));
+    await tester.pumpWidget(ManabeeApp(library: lib, dictionary: Jisho()));
+    await tester.tap(find.byIcon(Icons.inventory_2_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('new'), findsNWidgets(2));
+    await tester.tap(find.text('new').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Known — I know this already'));
+    await tester.pumpAndSettle();
+    expect(find.text('known'), findsOneWidget);
+    expect(lib.words.first.review.learned, isTrue);
+    await lib.save();
+  });
 }

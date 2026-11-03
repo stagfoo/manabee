@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../core/srs.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -133,6 +134,7 @@ class _FocusScreenState extends State<FocusScreen> {
                           ? lib.mangaById(shown[i].mangaId)?.title
                           : null,
                       onTap: () => lib.toggleFocus(shown[i]),
+                      onStatus: (st) => lib.setStatus(shown[i], st),
                     ),
                   ),
           ),
@@ -166,21 +168,36 @@ class _BookChip extends StatelessWidget {
 }
 
 class _WordTile extends StatelessWidget {
-  const _WordTile({required this.word, required this.onTap, this.book});
+  const _WordTile({
+    required this.word,
+    required this.onTap,
+    required this.onStatus,
+    this.book,
+  });
 
   final Word word;
   final String? book;
   final VoidCallback onTap;
 
+  /// Set by hand: a word already known needn't be drilled.
+  final ValueChanged<WordStatus> onStatus;
+
+  static String label(WordStatus s) => switch (s) {
+    WordStatus.fresh => 'new',
+    WordStatus.studying => 'studying',
+    WordStatus.known => 'known',
+  };
+
+  static Color colour(WordStatus s) => switch (s) {
+    WordStatus.fresh => C.textDim,
+    WordStatus.studying => C.lime,
+    WordStatus.known => C.mint,
+  };
+
   @override
   Widget build(BuildContext context) {
     final e = word.entry;
-    final r = word.review;
-    final (status, colour) = r.learned
-        ? ('learned', C.mint)
-        : r.isNew
-        ? ('new', C.textDim)
-        : ('studying', C.lime);
+    final status = wordStatusOf(word.review);
     return CheckboxListTile(
       value: word.focus,
       onChanged: (_) => onTap(),
@@ -206,7 +223,44 @@ class _WordTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: T.bodyMd.copyWith(color: C.textDim, fontSize: 12),
       ),
-      secondary: Text(status, style: T.monoSm.copyWith(color: colour)),
+      secondary: PopupMenuButton<WordStatus>(
+        tooltip: 'Change status',
+        initialValue: status,
+        color: C.elevated,
+        onSelected: onStatus,
+        itemBuilder: (_) => [
+          for (final s in WordStatus.values)
+            PopupMenuItem(
+              value: s,
+              child: Text(switch (s) {
+                WordStatus.fresh => 'New — not studied yet',
+                WordStatus.studying => 'Studying — learning it now',
+                WordStatus.known => 'Known — I know this already',
+              }, style: T.bodyMd.copyWith(color: colour(s))),
+            ),
+        ],
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+          decoration: BoxDecoration(
+            border: Border.all(color: colour(status).withValues(alpha: 0.6)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label(status),
+                style: T.monoSm.copyWith(color: colour(status)),
+              ),
+              Icon(
+                Icons.arrow_drop_down_rounded,
+                color: colour(status),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

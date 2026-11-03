@@ -304,6 +304,38 @@ bool _sameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
 /// New cards already introduced on [now]'s calendar day.
+/// How a word stands, as set by hand: never studied, being learned, or
+/// already known.
+enum WordStatus { fresh, studying, known }
+
+/// The interval a word marked as known starts at: three weeks, past the
+/// "learned" mark, so it's counted as learned and comes back now and then
+/// to check — a wrong answer then just brings it back into learning.
+const int kKnownIntervalDays = 21;
+
+/// The schedule for a word set to [status] at [now].
+///
+/// Known and fresh don't count against the day's new cards: neither is a
+/// card being started. Studying puts it in the first learning step, due
+/// now, as if just introduced.
+ReviewState stateFor(WordStatus status, DateTime now) => switch (status) {
+  WordStatus.fresh => const ReviewState(),
+  WordStatus.studying => ReviewState(step: 0, due: now, introduced: now),
+  WordStatus.known => ReviewState(
+    step: -1,
+    reps: 1,
+    intervalDays: kKnownIntervalDays,
+    due: now.add(const Duration(days: kKnownIntervalDays)),
+  ),
+};
+
+/// How [s] stands, in the same three words.
+WordStatus wordStatusOf(ReviewState s) => s.learned
+    ? WordStatus.known
+    : s.isNew
+    ? WordStatus.fresh
+    : WordStatus.studying;
+
 int introducedToday(Iterable<ReviewState> cards, DateTime now) => cards
     .where(
       (c) => c.introduced != null && _sameDay(c.introduced!.toLocal(), now),
