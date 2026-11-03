@@ -152,4 +152,66 @@ void main() {
     expect(lib.words.first.review.learned, isTrue);
     await lib.save();
   });
+
+  testWidgets('find words to tick by text and status', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final lib = Library(MemoryStorage());
+    for (final (w, r, m) in [
+      ('食べる', 'たべる', 'to eat'),
+      ('飲む', 'のむ', 'to drink'),
+      ('森', 'もり', 'forest'),
+    ]) {
+      lib.saveWord(
+        'm',
+        Entry(
+          word: w,
+          reading: r,
+          senses: [
+            Sense(glosses: [m]),
+          ],
+        ),
+      );
+    }
+    lib.setStatus(lib.words.last, WordStatus.known);
+    await tester.pumpWidget(ManabeeApp(library: lib, dictionary: Jisho()));
+    await tester.tap(find.byIcon(Icons.inventory_2_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose'));
+    await tester.pumpAndSettle();
+
+    String listed() => ['食べる', '飲む', '森']
+        .where(
+          (w) => find
+              .descendant(
+                of: find.byType(CheckboxListTile),
+                matching: find.textContaining(w, findRichText: true),
+              )
+              .evaluate()
+              .isNotEmpty,
+        )
+        .join(',');
+
+    // By meaning, by romaji, by reading.
+    await tester.enterText(find.byType(TextField), 'drink');
+    await tester.pumpAndSettle();
+    expect(listed(), '飲む');
+    await tester.enterText(find.byType(TextField), 'taberu');
+    await tester.pumpAndSettle();
+    expect(listed(), '食べる');
+    await tester.enterText(find.byType(TextField), 'もり');
+    await tester.pumpAndSettle();
+    expect(listed(), '森');
+
+    // By status.
+    await tester.enterText(find.byType(TextField), '');
+    await tester.tap(find.text('Known'));
+    await tester.pumpAndSettle();
+    expect(listed(), '森');
+    await tester.tap(find.text('New'));
+    await tester.pumpAndSettle();
+    expect(listed(), '食べる,飲む');
+    await lib.save();
+  });
 }

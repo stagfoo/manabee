@@ -24,6 +24,12 @@ class _FocusScreenState extends State<FocusScreen> {
   /// Which book's words are listed; null = every book.
   String? _book;
 
+  /// Text to find a word by: its spelling, reading, romaji or meaning.
+  String _query = '';
+
+  /// Only words with this status; null = any.
+  WordStatus? _status;
+
   @override
   Widget build(BuildContext context) {
     final lib = AppScope.library(context);
@@ -32,7 +38,12 @@ class _FocusScreenState extends State<FocusScreen> {
         if (lib.wordsFor(m.id).isNotEmpty) m,
     ];
     if (_book != null && !books.any((b) => b.id == _book)) _book = null;
-    final shown = lib.wordsFor(_book);
+    final shown = [
+      for (final w in lib.wordsFor(_book))
+        if (focusMatches(w, _query) &&
+            (_status == null || wordStatusOf(w.review) == _status))
+          w,
+    ];
     final focused = lib.focusCount;
 
     return GridScaffold(
@@ -86,6 +97,43 @@ class _FocusScreenState extends State<FocusScreen> {
             ),
           ),
           Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v),
+              style: T.bodyLg,
+              decoration: const InputDecoration(
+                isDense: true,
+                hintText: 'Find a word: 食べる, taberu, eat…',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            // Wrapped, not scrolled: four short filters should all be in
+            // sight.
+            child: Wrap(
+              runSpacing: 6,
+              children: [
+                _BookChip(
+                  label: 'Any status',
+                  on: _status == null,
+                  onTap: () => setState(() => _status = null),
+                ),
+                for (final st in WordStatus.values)
+                  _BookChip(
+                    label: switch (st) {
+                      WordStatus.fresh => 'New',
+                      WordStatus.studying => 'Studying',
+                      WordStatus.known => 'Known',
+                    },
+                    on: _status == st,
+                    onTap: () => setState(() => _status = st),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
             child: Row(
               children: [
@@ -96,7 +144,8 @@ class _FocusScreenState extends State<FocusScreen> {
                       foregroundColor: C.onLime,
                       minimumSize: const Size(0, 44),
                     ),
-                    onPressed: shown.isEmpty
+                    // The book's next words, whatever the filter shows.
+                    onPressed: lib.wordsFor(_book).isEmpty
                         ? null
                         : () => lib.focusNext(mangaId: _book),
                     icon: const Icon(Icons.skip_next_rounded),
@@ -117,7 +166,14 @@ class _FocusScreenState extends State<FocusScreen> {
             ),
           ),
           Expanded(
-            child: shown.isEmpty
+            child: shown.isEmpty && (_query.isNotEmpty || _status != null)
+                ? Center(
+                    child: Text(
+                      'No words match.',
+                      style: T.bodyMd.copyWith(color: C.textDim),
+                    ),
+                  )
+                : shown.isEmpty
                 ? const EmptyState(
                     emoji: '🎯',
                     title: 'No words yet',
@@ -263,4 +319,16 @@ class _WordTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Whether [w] matches [query] — by spelling, reading, romaji or any
+/// meaning, ignoring case.
+bool focusMatches(Word w, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  final e = w.entry;
+  return e.word.contains(q) ||
+      e.reading.contains(q) ||
+      e.romaji.toLowerCase().contains(q) ||
+      e.senses.any((s) => s.glosses.any((g) => g.toLowerCase().contains(q)));
 }

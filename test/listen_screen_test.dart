@@ -193,6 +193,7 @@ void main() {
         );
     await tester.pumpAndSettle();
     expect(find.text('Listen  1 / 4'), findsOneWidget); // 2 words, 2 repeats
+    expect(find.text('2 words · new and weak ones repeat'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Play'));
     for (var i = 0; i < 160; i++) {

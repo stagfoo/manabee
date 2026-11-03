@@ -280,11 +280,27 @@ class _ListenScreenState extends State<ListenScreen> {
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: Text(
-          _entries.isEmpty
-              ? 'Listen'
-              : 'Listen  ${(_index + 1).clamp(1, _entries.length)} / ${_entries.length}',
-          style: T.headlineMd,
+        // Plays, not words: with repeats on, new and weak words come back,
+        // so 35 words can be a 75-play list — said underneath, so the
+        // count doesn't look like the wrong words.
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _entries.isEmpty
+                  ? 'Listen'
+                  : 'Listen  ${(_index + 1).clamp(1, _entries.length)} / ${_entries.length}',
+              style: T.headlineMd,
+            ),
+            if (_entries.isNotEmpty)
+              Text(
+                _entries.length > _words.length
+                    ? '${_words.length} words · new and weak ones repeat'
+                    : '${_words.length} words',
+                style: T.monoSm.copyWith(fontSize: 11),
+              ),
+          ],
         ),
         actions: [
           IconButton(
