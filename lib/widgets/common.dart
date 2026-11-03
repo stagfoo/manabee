@@ -392,7 +392,12 @@ class WordRow extends StatelessWidget {
     // Dark text on the light colours (lime, mint), white on violet.
     final onColor = color == C.lime || color == C.mint ? C.onLime : C.text;
     final labelColor = onColor.withValues(alpha: 0.55);
-    Widget cell(String label, String value, {bool jp = false}) => Expanded(
+    Widget cell(
+      String label,
+      String value, {
+      bool jp = false,
+      String below = '',
+    }) => Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 1),
         padding: const EdgeInsets.fromLTRB(6, 10, 6, 12),
@@ -425,6 +430,18 @@ class WordRow extends StatelessWidget {
                         height: 1.25,
                       ),
             ),
+            if (below.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  below,
+                  style: TextStyle(
+                    color: labelColor,
+                    fontSize: 8,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -441,6 +458,10 @@ class WordRow extends StatelessWidget {
               cell(
                 'ENGLISH',
                 entry.senses.isEmpty ? '' : entry.senses.first.glosses.first,
+                // How often it's said, so the everyday word stands out
+                // among a search's results.
+                below:
+                    '${'●' * entry.spokenDots}${'○' * (5 - entry.spokenDots)}',
               ),
               cell('ROMAJI', entry.romaji),
               cell('FURIGANA', entry.reading, jp: true),
@@ -696,4 +717,42 @@ Future<String?> pickBook(BuildContext context, {String? exclude}) async {
         title.trim().isEmpty ? 'Commonplace book' : title.trim(),
       )
       .id;
+}
+
+/// How often a word is said, as five dots — ●●●●○ — with its label.
+class SpokenDots extends StatelessWidget {
+  const SpokenDots(this.entry, {super.key, this.label = true});
+
+  final Entry entry;
+
+  /// Whether to say it in words as well ("common in speech").
+  final bool label;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = entry.spokenDots;
+    final colour = n >= 4 ? C.mint : (n >= 2 ? C.lime : C.textDim);
+    return Tooltip(
+      message: 'How often it comes up in everyday sentences',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${'●' * n}${'○' * (5 - n)}',
+            style: TextStyle(color: colour, fontSize: 11, letterSpacing: 1),
+          ),
+          if (label) ...[
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                entry.spokenLabel,
+                overflow: TextOverflow.ellipsis,
+                style: T.monoSm.copyWith(color: colour, fontSize: 10),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

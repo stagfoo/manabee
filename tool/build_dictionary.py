@@ -115,8 +115,100 @@ def main():
         CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """)
 
+    # Spoken frequency (tool/count_frequency.dart): counts of words as
+    # written — by spelling when it has kanji or katakana, by kana when
+    # written in hiragana (which homophone it was is decided below).
+    # Optional: without it, entries rank as before.
+    by_spelling = {}
+    by_kana = {}
+    freq_path = os.path.join(HERE, "data", "spoken_frequency.tsv")
+    if os.path.exists(freq_path):
+        with open(freq_path) as f:
+            for line in f:
+                if line.startswith("#") or not line.strip():
+                    continue
+                word, reading, count = line.rstrip("\n").split("\t")
+                # A lone kana is a particle (ordered on its own) or a
+                # fragment of a word the segmenter split: no evidence.
+                if word == reading and len(word) == 1:
+                    continue
+                bucket = by_kana if word == reading else by_spelling
+                bucket[word] = bucket.get(word, 0) + int(count)
+        log(f"  spoken frequency: {len(by_spelling) + len(by_kana)} words")
+    kana_owners = {}
+    owners_path = os.path.join(HERE, "data", "kana_owners.tsv")
+    if os.path.exists(owners_path):
+        with open(owners_path) as f:
+            for line in f:
+                if line.startswith("#") or not line.strip():
+                    continue
+                kana_form, spelling = line.rstrip("\n").split("\t")
+                kana_owners[kana_form] = spelling
+
+    # Each count goes to one entry. A spelling to the likeliest entry
+    # written that way — common first, then the easier JLPT level (人 is
+    # ひと before the suffix じん). A kana form to the word named in
+    # kana_owners.tsv, else the likeliest entry usually written in kana.
+    best_for_spelling = {}
+    best_for_kana = {}
+    spoken = {}
+    if by_spelling or by_kana:
+        for w in jm["words"]:
+            kanji = [k["text"] for k in w["kanji"]]
+            kana = [k["text"] for k in w["kana"]]
+            common = any(k.get("common") for k in w["kanji"] + w["kana"])
+            uk = not kanji or any("uk" in s.get("misc", []) for s in w["sense"])
+            levels = [jlpt.get((e, r)) for e in kanji + kana for r in kana]
+            levels.append(jlpt.get(((kanji or kana)[0], "")))
+            easiest = max((int(l[1]) for l in levels if l), default=0)
+            # A suffix, prefix or counter (人 as じん, "-person") loses a tie
+            # to the word itself (人, ひと).
+            first_pos = w["sense"][0]["partOfSpeech"] if w["sense"] else []
+            affix = any(p in ("suf", "pref", "ctr") for p in first_pos)
+            prio = (0 if common else 1, 1 if affix else 0, -easiest)
+            for k in dict.fromkeys(kanji + kana):
+                if k in by_spelling and (k not in best_for_spelling
+                                         or prio < best_for_spelling[k][0]):
+                    best_for_spelling[k] = (prio, w["id"])
+            for r in kana:
+                if r not in by_kana:
+                    continue
+                named = kana_owners.get(r)
+                if named is not None:
+                    kprio = (0 if named in kanji else 1,) + prio
+                else:
+                    kprio = (0 if uk else 1,) + prio
+                if r not in best_for_kana or kprio < best_for_kana[r][0]:
+                    best_for_kana[r] = (kprio, w["id"])
+        totals = {}
+        for k, (_, eid) in best_for_spelling.items():
+            totals[eid] = totals.get(eid, 0) + by_spelling[k]
+        for r, (_, eid) in best_for_kana.items():
+            totals[eid] = totals.get(eid, 0) + by_kana[r]
+        for i, eid in enumerate(sorted(totals, key=lambda e: -totals[e])):
+            spoken[eid] = i + 1
+    with_freq = 0
+
     used_pos = set()
     entries = forms = with_level = 0
+    for w in jm["words"]:
+            kanji = [k["text"] for k in w["kanji"]]
+            kana = [k["text"] for k in w["kana"]]
+            common = any(k.get("common") for k in w["kanji"] + w["kana"])
+            uk = not kanji or any("uk" in s.get("misc", []) for s in w["sense"])
+            levels = [jlpt.get((e, r)) for e in kanji + kana for r in kana]
+            # N5 the easiest, so the likeliest of several readings.
+            easiest = max((int(l[1]) for l in levels if l), default=0)
+            keys = [(k, r) for k in kanji for r in kana]
+            keys += [(r, r) for r in kana]
+            for key in keys:
+                # A kana count: the word usually written in kana first.
+                kana_key = key[0] == key[1]
+                prio = (0 if (uk or not kana_key) else 1,
+                        0 if common else 1, -easiest)
+                if key in spoken and (key not in owner or prio < owner[key][0]):
+                    owner[key] = (prio, w["id"])
+
     for w in jm["words"]:
         kanji = [k["text"] for k in w["kanji"]]
         kana = [k["text"] for k in w["kana"]]
@@ -153,14 +245,22 @@ def main():
             data["u"] = 1
         if level:
             data["j"] = level
+        # Its spoken rank, 1 the most said.
+        if w["id"] in spoken:
+            data["f"] = spoken[w["id"]]
+            with_freq += 1
         eid = int(w["id"])
         db.execute("INSERT INTO entry VALUES (?, ?)",
                    (eid, json.dumps(data, ensure_ascii=False, separators=(",", ":"))))
         entries += 1
 
-        # Rank: common words first, then JLPT words, then the rest — what
-        # a reader most likely meant when one spelling has several entries.
-        rank = (0 if common else 2) + (0 if level else 1)
+        # Rank: by how often it's said, when that's known — what a reader
+        # most likely meant when one spelling has several entries — and
+        # after those, common words, then JLPT words, then the rest.
+        if "f" in data:
+            rank = data["f"]
+        else:
+            rank = 1_000_000 + (0 if common else 200_000) + (0 if level else 100_000)
         # A kana spelling of a word normally written in kanji ranks behind
         # words actually written that way: は is the particle before it is
         # 羽 (a feather, read は), に before 荷. Words usually written in
@@ -171,23 +271,30 @@ def main():
         # them by what comes back first.
         particle = any("prt" in sn["p"] for sn in senses[:1])
         for f in dict.fromkeys(kanji + kana):
-            penalty = 2 if kanji_word and f in kana else 0
+            form_rank = rank
+            # Softly: a very common verb met in kana (かえる → 帰る) still
+            # beats a rare word that's usually written that way (蛙).
+            if kanji_word and f in kana:
+                form_rank = rank * 4
             if particle and f in kana:
-                penalty = -10
+                form_rank = -1
             db.execute("INSERT OR IGNORE INTO form VALUES (?, ?, ?)",
-                       (f, eid, rank + penalty))
+                       (f, eid, form_rank))
             forms += 1
 
     tags = jm.get("tags", {})
     for code in sorted(used_pos):
         db.execute("INSERT INTO pos VALUES (?, ?)", (code, tags.get(code, code)))
 
-    version = f"{tag}"
+    # The app re-copies the database when this changes, so the spoken
+    # frequency it was built with is part of it.
+    version = f"{tag}-spoken{len(spoken)}b" if spoken else f"{tag}"
     for k, v in {
         "jmdict": tag,
         "entries": str(entries),
         "forms": str(forms),
         "with_jlpt": str(with_level),
+        "with_spoken_frequency": str(with_freq),
         "version": version,
     }.items():
         db.execute("INSERT INTO meta VALUES (?, ?)", (k, v))

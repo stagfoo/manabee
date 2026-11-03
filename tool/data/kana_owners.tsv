@@ -1,0 +1,33 @@
+# Which word a count of an everyday word written in kana belongs to, where
+# the dictionary can't tell (several homophones, all common, all "usually
+# kana" or none). Kana, then the spelling of the entry it means.
+いる	居る
+ある	有る
+なる	成る
+とる	取る
+いくら	幾ら
+ひと	人
+みる	見る
+きる	着る
+かく	書く
+きく	聞く
+あう	会う
+いう	言う
+おもう	思う
+かえる	帰る
+はし	橋
+かみ	紙
+あめ	雨
+はな	花
+いい	良い
+よい	良い
+こと	事
+もの	物
+とき	時
+ところ	所
+ほう	方
+くる	来る
+する	為る
+できる	出来る
+わかる	分かる
+はる	春

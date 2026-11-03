@@ -78,14 +78,30 @@ void main() {
   });
 
   test('the last word of a sentence: verbs first', () async {
-    // Out of context, かえる is a frog first and はる is spring.
-    expect((await dict.lookup('かえる')).first.shortMeaning, 'frog');
+    // Out of context, はる is spring — the noun people say most.
     expect((await dict.lookup('はる')).first.word, '春');
     // At the end of a sentence, the verbs come first — nothing is dropped.
-    final kaeru = predicatesFirst(await dict.lookup('かえる'));
-    expect(kaeru.first.word, '帰る');
-    expect(kaeru.map((e) => e.shortMeaning), contains('frog'));
-    expect(predicatesFirst(await dict.lookup('はる')).first.word, '張る');
+    final haru = predicatesFirst(await dict.lookup('はる'));
+    expect(haru.first.word, '張る');
+    expect(haru.map((e) => e.word), contains('春'));
+  });
+
+  test('most-said first: the everyday word before the rare one', () async {
+    Future<String> first(String q) async => (await dict.lookup(q)).first.word;
+    expect(await first('かえる'), '帰る'); // not 蛙, frog
+    // 居る, shown in kana as it's usually written: to be, not to need.
+    expect((await dict.lookup('いる')).first.shortMeaning, contains('to be'));
+    expect(await first('とる'), '取る'); // not 摂る
+    expect(await first('きる'), '着る'); // not 斬る
+    // 幾ら, shown in kana: how much, not salmon roe.
+    expect((await dict.lookup('いくら')).first.shortMeaning, contains('how much'));
+    // 人, shown in kana: a person, not 他人 (another person).
+    expect((await dict.lookup('ひと')).first.shortMeaning, contains('person'));
+    expect(await first('あめ'), '雨'); // not 飴
+    final hito = (await dict.lookup('人')).first;
+    expect(hito.reading, 'ひと'); // the word, not the suffix じん
+    expect(hito.spokenDots, 5);
+    expect((await dict.lookup('射る')).first.spokenDots, lessThan(3));
   });
 
   test('what counts as the end of a sentence', () {

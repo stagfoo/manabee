@@ -53,6 +53,8 @@ class EntryDetail extends StatelessWidget {
           Tag('jlpt ${entry.jlpt!.toLowerCase()}', const Color(0xFF909DC0)),
         if (entry.wanikani != null)
           Tag('wanikani level ${entry.wanikani}', const Color(0xFF909DC0)),
+        const SizedBox(height: 4),
+        SpokenDots(entry),
         const SizedBox(height: 8),
         _Link('Play audio', () async {
           final problem = await Speech.instance.say(

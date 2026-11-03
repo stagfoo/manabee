@@ -53,6 +53,7 @@ Entry entryFromRow(String data, String query, Map<String, String> pos) {
     reading: reading,
     common: j['c'] == 1,
     jlpt: j['j'] as String?,
+    spoken: (j['f'] as num?)?.toInt(),
     senses: [
       for (final s in j['s'] as List)
         Sense(
@@ -178,11 +179,61 @@ class AppDictionary implements Dictionary {
 
   @override
   Future<List<Entry>> lookup(String query) async {
-    if (!containsJapanese(query)) return _jisho.lookup(query);
+    if (!containsJapanese(query)) {
+      final found = await _jisho.lookup(query);
+      try {
+        return await bySpoken(found, await _local());
+      } on Object catch (_) {
+        return found; // no offline dictionary to rank by: jisho's order
+      }
+    }
     return (await _local()).lookup(query);
   }
 
   @override
   Future<List<Entry>> jlptWords(String level) async =>
       (await _local()).jlptWords(level);
+}
+
+/// [results] — jisho.org's, for an English search — given their spoken
+/// rank from [local] and put most-said first. jisho orders by its own
+/// idea of relevance, which can put a literary word above the one people
+/// say; words it can't rank keep jisho's order, after the ranked ones.
+Future<List<Entry>> bySpoken(List<Entry> results, Dictionary local) async {
+  final ranked = <(Entry, int?)>[];
+  for (final e in results) {
+    int? spoken;
+    try {
+      final here = await local.lookup(e.word);
+      spoken = here
+          .where((x) => x.reading == e.reading || x.word == e.word)
+          .map((x) => x.spoken)
+          .whereType<int>()
+          .fold<int?>(null, (a, b) => a == null || b < a ? b : a);
+    } on Exception catch (_) {
+      // No local dictionary to ask: jisho's order stands.
+    }
+    ranked.add((
+      Entry(
+        word: e.word,
+        reading: e.reading,
+        senses: e.senses,
+        common: e.common,
+        jlpt: e.jlpt,
+        wanikani: e.wanikani,
+        spoken: spoken ?? e.spoken,
+      ),
+      spoken ?? e.spoken,
+    ));
+  }
+  final indexed = [for (final (i, r) in ranked.indexed) (i, r.$1, r.$2)];
+  indexed.sort((a, b) {
+    final fa = a.$3;
+    final fb = b.$3;
+    if (fa != null && fb != null && fa != fb) return fa.compareTo(fb);
+    if (fa != null && fb == null) return -1;
+    if (fa == null && fb != null) return 1;
+    return a.$1.compareTo(b.$1);
+  });
+  return [for (final r in indexed) r.$2];
 }

@@ -942,6 +942,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       e.allMeanings,
       style: T.bodyMd.copyWith(color: const Color(0xFFD4D4DC)),
     ),
+    Padding(padding: const EdgeInsets.only(top: 6), child: SpokenDots(e)),
     // Read with a character corrected: say so, and offer to fix the text.
     if (_corrected != null && active != null && _span?.$1 == active.id)
       Padding(

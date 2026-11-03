@@ -32,6 +32,7 @@ FILES = {
 }
 CACHE = os.path.join("build", "tatoeba")
 OUT = os.path.join("build", "sentences", "candidates.tsv")
+NATIVE_OUT = os.path.join("build", "sentences", "native.txt")
 MAX_CHARS = 25
 
 
@@ -76,11 +77,20 @@ def main():
             first_english.setdefault(jp, en)
 
     candidates = []
-    with open(paths["jpn_sentences_detailed.tsv"]) as f:
+    # Every native sentence, any length: what tool/count_frequency.dart
+    # counts words over.
+    native_all = 0
+    with open(paths["jpn_sentences_detailed.tsv"]) as f, \
+            open(NATIVE_OUT, "w") as everything:
         for line in f:
             sid, _, text, user, *_ = line.rstrip("\n").split("\t")
-            if user in natives and sid in first_english and len(text) <= MAX_CHARS:
+            if user not in natives:
+                continue
+            everything.write(text + "\n")
+            native_all += 1
+            if sid in first_english and len(text) <= MAX_CHARS:
                 candidates.append((sid, text, user))
+    log(f"  {native_all} native sentences -> {NATIVE_OUT}")
 
     wanted = {first_english[sid] for sid, _, _ in candidates}
     english = {}

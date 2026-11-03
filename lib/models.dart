@@ -332,6 +332,7 @@ class Entry {
     this.common = false,
     this.jlpt,
     this.wanikani,
+    this.spoken,
   });
 
   /// The written form: kanji where it has them, otherwise the kana.
@@ -345,6 +346,30 @@ class Entry {
   /// e.g. "N5". Null when the word isn't on a JLPT list.
   final String? jlpt;
   final int? wanikani;
+
+  /// How often it's said: its rank among words in native-speaker
+  /// sentences, 1 the most used (tool/count_frequency.dart). Null when it
+  /// didn't come up at all.
+  final int? spoken;
+
+  /// [spoken] as 1–5 dots, 5 the most said; 0 when it never came up.
+  int get spokenDots => switch (spoken) {
+    null => 0,
+    <= 300 => 5,
+    <= 1500 => 4,
+    <= 5000 => 3,
+    <= 12000 => 2,
+    _ => 1,
+  };
+
+  String get spokenLabel => switch (spokenDots) {
+    5 => 'very common in speech',
+    4 => 'common in speech',
+    3 => 'heard sometimes',
+    2 => 'uncommon',
+    1 => 'rare',
+    _ => 'not heard in everyday sentences',
+  };
 
   String get romaji => toRomaji(reading.isEmpty ? word : reading);
 
@@ -365,6 +390,7 @@ class Entry {
     'common': common,
     if (jlpt != null) 'jlpt': jlpt,
     if (wanikani != null) 'wanikani': wanikani,
+    if (spoken != null) 'spoken': spoken,
   };
 
   factory Entry.fromJson(Map<String, dynamic> j) => Entry(
@@ -377,6 +403,7 @@ class Entry {
     common: j['common'] as bool? ?? false,
     jlpt: j['jlpt'] as String?,
     wanikani: (j['wanikani'] as num?)?.toInt(),
+    spoken: (j['spoken'] as num?)?.toInt(),
   );
 }
 

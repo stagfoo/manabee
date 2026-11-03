@@ -136,11 +136,11 @@ void main() {
   });
 
   testWidgets('mid-sentence, the usual order stands', (tester) async {
-    await open(tester, 'かえるがいる');
-    await tester.tap(bubbleChar('か'));
+    await open(tester, 'あめもすき');
+    await tester.tap(bubbleChar('あ'));
     await settle(tester);
-    expect(await highlighted(tester), 'かえる');
-    expect(find.text('frog'), findsWidgets);
+    expect(find.textContaining('rain'), findsWidgets);
+    expect(await highlighted(tester), 'あめ');
     await lib.save();
   });
 

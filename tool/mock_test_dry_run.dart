@@ -29,14 +29,18 @@ void main() {
       File('assets/sentences/sentences.tsv').readAsStringSync(),
     );
     final combos = [
-      for (final j in (jsonDecode(
-            File('assets/kanji/combos.json').readAsStringSync(),
-          ) as Map)['combos'] as List)
+      for (final j
+          in (jsonDecode(File('assets/kanji/combos.json').readAsStringSync())
+                  as Map)['combos']
+              as List)
         Combo.fromJson(j as Map<String, dynamic>),
     ];
     final facts = mockKanjiFacts(combos);
     final words = <String, Entry>{};
-    for (final l in kSentenceLevels.sublist(0, kSentenceLevels.indexOf(level) + 1)) {
+    for (final l in kSentenceLevels.sublist(
+      0,
+      kSentenceLevels.indexOf(level) + 1,
+    )) {
       for (final e in await dict.jlptWords(l)) {
         words.putIfAbsent('${e.word}|${e.reading}', () => e);
       }
@@ -52,8 +56,10 @@ void main() {
         lookup: dict.lookup,
         random: Random(n),
       );
-      stderr.writeln('\n== $level test ${n + 1}: ${qs.length} questions '
-          'in ${sw.elapsedMilliseconds}ms ==');
+      stderr.writeln(
+        '\n== $level test ${n + 1}: ${qs.length} questions '
+        'in ${sw.elapsedMilliseconds}ms ==',
+      );
       for (final q in qs) {
         final (a, b) = q.underline;
         final s = q.shown;
@@ -61,9 +67,9 @@ void main() {
           '[${q.section.name.padRight(7)}] ${s.substring(0, a)}【${s.substring(a, b)}】${s.substring(b)}'
           '   ${q.entry.jlpt}',
         );
-        stderr.writeln('          ${[
-          for (final (i, o) in q.options.indexed) i == q.answer ? '*$o' : o,
-        ].join('   ')}');
+        stderr.writeln(
+          '          ${[for (final (i, o) in q.options.indexed) i == q.answer ? '*$o' : o].join('   ')}',
+        );
       }
     }
   }, timeout: Timeout.none);
