@@ -84,6 +84,21 @@ void main() {
     expect(find.byType(ConjugationScreen), findsOneWidget);
   });
 
+  testWidgets('verb forms: a verb, a form to make, the rule on answering', (
+    tester,
+  ) async {
+    await open(tester, const GrammarScreen(drill: Drill.conjugation));
+    expect(find.text('Verb forms'), findsOneWidget);
+    expect(find.textContaining('→ '), findsWidgets);
+    for (var i = 0; i < 10; i++) {
+      await answerAndNext(tester);
+    }
+    expect(find.text('Another round'), findsOneWidget);
+    // Scheduled per rule: a form for a kind of verb.
+    expect(lib.grammar.keys, everyElement(startsWith('conj:')));
+    expect(lib.grammar, hasLength(10));
+  });
+
   testWidgets('the rules list shows every rule', (tester) async {
     await open(tester, const GrammarScreen(drill: Drill.particles));
     await tester.tap(find.text('Rules'));

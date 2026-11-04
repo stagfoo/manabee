@@ -267,6 +267,15 @@ class _StudyScreenState extends State<StudyScreen> {
                 open(GrammarScreen(drill: Drill.particles, mangaId: _mangaId)),
           ),
           _Tile(
+            icon: Icons.transform_rounded,
+            title: 'Verb forms quiz',
+            subtitle: 'Make it past, negative, te-form… — pick the right one',
+            enabled: true,
+            onTap: () => open(
+              GrammarScreen(drill: Drill.conjugation, mangaId: _mangaId),
+            ),
+          ),
+          _Tile(
             icon: Icons.link_rounded,
             title: 'Joining words',
             subtitle: 'から, ても, たら… — each on its own verb form',

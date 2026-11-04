@@ -155,13 +155,14 @@ void main() {
     for (final w in ['虫', '朝', '森', '光']) {
       lib.saveWord(w == '光' ? 'm2' : 'm1', entry(w, '', w));
     }
-    expect(lib.dueToday('m1').newCards, 3);
-    final now = DateTime.now();
+    // Midday: run near midnight, a 10-minute learning step lands tomorrow.
+    final now = DateTime(2026, 11, 4, 12);
+    expect(lib.dueToday('m1', now).newCards, 3);
     lib.setReview(lib.words[0].id, lib.words[0].review.answer(Grade.good, now));
     lib.setReview(lib.words[1].id, lib.words[1].review.answer(Grade.good, now));
     expect(lib.newAllowanceToday(now), 1);
-    expect(lib.dueToday('m2').newCards, 1);
-    expect(lib.dueToday(null).learning, 2);
+    expect(lib.dueToday('m2', now).newCards, 1);
+    expect(lib.dueToday(null, now).learning, 2);
     lib.dispose();
   });
 

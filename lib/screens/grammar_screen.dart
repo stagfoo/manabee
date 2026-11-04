@@ -13,6 +13,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../core/conjugate.dart';
+import '../core/conjugation_quiz.dart';
 import '../core/joining.dart';
 import '../core/particles.dart';
 import '../core/srs.dart';
@@ -21,7 +22,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import 'conjugation_screen.dart';
 
-enum Drill { particles, joining }
+enum Drill { particles, joining, conjugation }
 
 const int kGrammarSessionLength = 10;
 
@@ -66,18 +67,28 @@ List<String> rulesInOrder(
 class _Q {
   _Q.particle(this.gap, int seed)
     : join = null,
+      conj = null,
       ruleId = gap!.ruleId,
       answer = gap.rule.particle,
       choices = choicesFor(gap, seed);
 
   _Q.join(this.join)
     : gap = null,
+      conj = null,
       ruleId = join!.joinerId,
       answer = join.answer,
       choices = join.choices;
 
+  _Q.conj(this.conj)
+    : gap = null,
+      join = null,
+      ruleId = conj!.rule,
+      answer = conj.answer,
+      choices = conj.choices;
+
   final ParticleGap? gap;
   final JoinQuestion? join;
+  final ConjugationQuestion? conj;
   final String ruleId;
   final String answer;
   final List<String> choices;
@@ -108,6 +119,22 @@ class _GrammarScreenState extends State<GrammarScreen> {
 
   bool get _particles => widget.drill == Drill.particles;
 
+  String get _title => switch (widget.drill) {
+    Drill.particles => 'Particles',
+    Drill.joining => 'Joining words',
+    Drill.conjugation => 'Verb forms',
+  };
+
+  /// How a rule is named in the summary.
+  String _ruleName(String id) => switch (widget.drill) {
+    Drill.particles => '${particleRule(id).particle} — ${particleRule(id).job}',
+    Drill.joining => '〜${joiner(id).joiner} — ${joiner(id).meaning}',
+    Drill.conjugation => () {
+      final [_, kind, form] = id.split(':');
+      return '${quizFormName(form)} of ${verbKindName(kind)}';
+    }(),
+  };
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -117,9 +144,20 @@ class _GrammarScreenState extends State<GrammarScreen> {
   List<_Q> _build() {
     final lib = AppScope.read(context);
     final mine = [for (final w in lib.wordsFor(widget.mangaId)) w.entry];
-    final ruleIds = _particles
-        ? [for (final r in kParticleRules) r.id]
-        : [for (final j in kJoiners) j.id];
+    final verbs = <Verb>[for (final e in mine) ?Verb.fromEntry(e)];
+    // Conjugation: every form, for each kind of verb there's one of —
+    // the common forms first across all kinds, then the rarer ones.
+    final kinds = {
+      for (final v in [...verbs, ...kCoreJoinVerbs]) verbKind(v),
+    };
+    final ruleIds = switch (widget.drill) {
+      Drill.particles => [for (final r in kParticleRules) r.id],
+      Drill.joining => [for (final j in kJoiners) j.id],
+      Drill.conjugation => [
+        for (final (form, _) in kQuizForms)
+          for (final kind in kinds) conjugationRule(kind, form),
+      ],
+    };
     final order = rulesInOrder(
       ruleIds,
       lib.grammarState,
@@ -148,7 +186,22 @@ class _GrammarScreenState extends State<GrammarScreen> {
           ),
       ];
     }
-    final verbs = <Verb>[for (final e in mine) ?Verb.fromEntry(e)];
+    if (widget.drill == Drill.conjugation) {
+      return [
+        for (final id in order)
+          () {
+            final [_, kind, form] = id.split(':');
+            final yours = verbs.where((v) => verbKind(v) == kind).toList();
+            final core = kCoreJoinVerbs
+                .where((v) => verbKind(v) == kind)
+                .toList();
+            final v = yours.isNotEmpty && (core.isEmpty || _random.nextBool())
+                ? pick(yours)
+                : pick(core);
+            return _Q.conj(conjugationQuestion(v, form, _random.nextInt(1000)));
+          }(),
+      ];
+    }
     return [
       for (final id in order)
         _Q.join(
@@ -209,12 +262,31 @@ class _GrammarScreenState extends State<GrammarScreen> {
           controller: scroll,
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
           children: [
-            Text(
-              _particles ? 'Particle rules' : 'Joining words',
-              style: T.headlineMd,
-            ),
+            Text(switch (widget.drill) {
+              Drill.particles => 'Particle rules',
+              Drill.joining => 'Joining words',
+              Drill.conjugation => 'Verb forms',
+            }, style: T.headlineMd),
             const SizedBox(height: 10),
-            if (_particles)
+            if (widget.drill == Drill.conjugation)
+              for (final (id, name) in kQuizForms)
+                _RuleCard(
+                  title: name,
+                  example: [
+                    for (final v in const [
+                      Verb('食べる', 'たべる', VerbGroup.ichidan),
+                      Verb('書く', 'かく', VerbGroup.godan),
+                      Verb('読む', 'よむ', VerbGroup.godan),
+                      Verb('する', 'する', VerbGroup.suru),
+                    ])
+                      '${v.written}→【${conjugate(v).all.firstWhere((f) => f.id == id).text.written}】',
+                  ].join('  '),
+                  english: 'ichidan · godan く · godan む · する',
+                  note:
+                      'Each kind of verb is practised on its own: the '
+                      'rule differs by group, and for godan by the last kana.',
+                )
+            else if (_particles)
               for (final r in kParticleRules)
                 _RuleCard(
                   title: '${r.particle}  ·  ${r.job}',
@@ -250,12 +322,7 @@ class _GrammarScreenState extends State<GrammarScreen> {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  _particles ? 'Particles' : 'Joining words',
-                  style: T.headlineMd,
-                ),
-              ),
+              Expanded(child: Text(_title, style: T.headlineMd)),
               TextButton.icon(
                 onPressed: _showRules,
                 icon: const Icon(Icons.menu_book_outlined, size: 18),
@@ -305,6 +372,20 @@ class _GrammarScreenState extends State<GrammarScreen> {
                   q.gap!.english,
                   textAlign: TextAlign.center,
                   style: T.bodyMd.copyWith(color: C.textDim),
+                ),
+              ] else if (q.conj != null) ...[
+                Text(
+                  q.conj!.verb.written,
+                  style: T.jp.copyWith(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '→ ${quizFormName(q.conj!.formId)}',
+                  textAlign: TextAlign.center,
+                  style: T.bodyLg.copyWith(color: C.lime),
                 ),
               ] else ...[
                 Text(
@@ -370,6 +451,42 @@ class _GrammarScreenState extends State<GrammarScreen> {
         good: right,
       );
     }
+    if (q.conj != null) {
+      final c = q.conj!;
+      final steps = c.form.path.skip(1).toList();
+      final kind = verbKindName(verbKind(c.verb));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _RuleCard(
+            title:
+                '${right ? 'Right' : 'Not quite'} — '
+                '${quizFormName(c.formId)}',
+            example: '${c.verb.written} →【${c.answer}】',
+            english: c.form.text.written == c.form.text.reading
+                ? c.form.meaning
+                : '${c.form.text.reading} · ${c.form.meaning}',
+            note:
+                '${[for (final f in steps) '${f.label}: ${f.rule}'].join('  then  ')}'
+                '  — for $kind.',
+            good: right,
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context, rootNavigator: true).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ConjugationScreen(verb: c.verb, onPage: c.answer),
+                ),
+              ),
+              icon: const Icon(Icons.hub_outlined, size: 18),
+              label: Text('${c.answer} on the verb map'),
+            ),
+          ),
+        ],
+      );
+    }
     final j = q.join!.joinerRule;
     final v = q.join!.verb;
     final base = joinBases(v)[j.base]!;
@@ -426,9 +543,7 @@ class _GrammarScreenState extends State<GrammarScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
-              _particles
-                  ? '${particleRule(id).particle} — ${particleRule(id).job}'
-                  : '〜${joiner(id).joiner} — ${joiner(id).meaning}',
+              _ruleName(id),
               textAlign: TextAlign.center,
               style: T.bodyLg,
             ),
